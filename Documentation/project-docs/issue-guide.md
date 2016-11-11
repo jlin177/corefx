@@ -27,7 +27,7 @@ We use GitHub [labels](https://github.com/dotnet/corefx/labels) on our issues in
  * [up for grabs](https://github.com/dotnet/corefx/labels/up%20for%20grabs): Small sections of work which we believe are well scoped.  These sorts of issues are a good place to start if you are new.  Anyone is free to work on these issues.
  * [needs more info](https://github.com/dotnet/corefx/labels/needs%20more%20info): Issues which need more information to be actionable.  Usually this will be because we can't reproduce a reported bug.  We'll close these issues after a little bit if we haven't gotten actionable information, but we welcome folks who have acquired more information to reopen the issue.
 
-In addition to the above, we have a handful of other labels we use to help classify our issues.  Some of these tag cross cutting concerns (e.g. [cross platform](https://github.com/dotnet/corefx/labels/X-Plat), [tenet-performance](https://github.com/dotnet/corefx/labels/tenet-performance)), whereas others are used to help us track additional work needed before closing an issue (e.g. [api-needs-exposed](https://github.com/dotnet/corefx/labels/api-needs-exposed)).
+In addition to the above, we have a handful of other labels we use to help classify our issues.  Some of these tag cross cutting concerns (e.g. [tenet-performance](https://github.com/dotnet/corefx/labels/tenet-performance)), whereas others are used to help us track additional work needed before closing an issue (e.g. [api-needs-exposed](https://github.com/dotnet/corefx/labels/api-needs-exposed)).
 
 ### Milestones
 We use [milestones](https://github.com/dotnet/corefx/milestones) to prioritize work for each upcoming release to NuGet.org.
@@ -40,56 +40,56 @@ Note: This is a new scheme introduced in 2016/9.  The old scheme used assignees 
 ### Areas
 Areas are tracked by labels area-* (e.g. area-System.Collections), or Infrastructure. Each area typically corresponds to one or more contract assemblies.
 
-| Area                                                                                          | Owners / experts | Description | Triage Status |
-|-----------------------------------------------------------------------------------------------|------------------|-------------|--------------------|
-| [area-Meta](https://github.com/dotnet/corefx/labels/area-Meta)                                |  | Issues without clear association to any specific API/contract (e.g. packaging, project-wide docs) |  |
-| [Infrastructure](https://github.com/dotnet/corefx/labels/Infrastructure)                      |  |  |  |
-| [area-Serialization](https://github.com/dotnet/corefx/labels/area-Serialization)                   |  |  |  |
-| **System contract assemblies** | | | |
-| [System.AppContext](https://github.com/dotnet/corefx/labels/area-System.AppContext)           |  |  |  |
-| [System.Buffers](https://github.com/dotnet/corefx/labels/area-System.Buffers)                 |  |  |  |
-| [System.CodeDom](https://github.com/dotnet/corefx/labels/area-System.CodeDom)                 | [@Priya91](https://github.com/Priya91) |  |  |
-| [System.Collections](https://github.com/dotnet/corefx/labels/area-System.Collections)         | [@Priya91](https://github.com/Priya91), [@ianhays](https://github.com/ianhays) |  | Triaged |
-| [System.ComponentModel](https://github.com/dotnet/corefx/labels/area-System.ComponentModel)   |  |  |  |
-| [System.ComponentModel.DataAnnotations](https://github.com/dotnet/corefx/labels/area-System.ComponentModel.DataAnnotations) |  |  |  |
-| [System.Composition](https://github.com/dotnet/corefx/labels/area-System.Composition)         |  |  |  |
-| [System.Console](https://github.com/dotnet/corefx/labels/area-System.Console)                 | [@ianhays](https://github.com/ianhays) |  |  |
-| [System.Data](https://github.com/dotnet/corefx/labels/area-System.Data)                       | [@saurabh500](https://github.com/saurabh500), [@YoungGah](https://github.com/YoungGah) |  |  |
-| [System.Data.SqlClient](https://github.com/dotnet/corefx/labels/area-System.Data.SqlClient)   | [@saurabh500](https://github.com/saurabh500), [@YoungGah](https://github.com/YoungGah) |  |  |
-| [System.Diagnostics](https://github.com/dotnet/corefx/labels/area-System.Diagnostics)         |  |  |  |
-| [System.Diagnostics.Process](https://github.com/dotnet/corefx/labels/area-System.Diagnostics.Process) | [@Priya91](https://github.com/Priya91) |  |  |
-| [System.Diagnostics.Tracing](https://github.com/dotnet/corefx/labels/area-System.Diagnostics.Tracing) |  |  |  |
-| [System.DirectoryServices](https://github.com/dotnet/corefx/labels/area-System.DirectoryServices) |  |  |  |
-| [System.Drawing](https://github.com/dotnet/corefx/labels/area-System.Drawing)                 |  |  |  |
-| [System.Dynamic.Runtime](https://github.com/dotnet/corefx/labels/area-System.Dynamic.Runtime) | [@VSadov](https://github.com/VSadov), [@OmarTawfik](https://github.com/OmarTawfik) |  |  |
-| [System.Globalization](https://github.com/dotnet/corefx/labels/area-System.Globalization)     | [@krwq](https://github.com/krwq), [@tarekgh](https://github.com/tarekgh) |  |  |
-| [System.IO](https://github.com/dotnet/corefx/labels/area-System.IO)                           | [@JeremyKhune](https://github.com/JeremyKuhne), [@ianhays](https://github.com/ianhays) |  | Triaged |
-| [System.IO.Compression](https://github.com/dotnet/corefx/labels/area-System.IO.Compression)   | [@ianhays](https://github.com/ianhays) |  | Triaged |
-| [System.Linq](https://github.com/dotnet/corefx/labels/area-System.Linq)                       | [@VSadov](https://github.com/VSadov), [@OmarTawfik](https://github.com/OmarTawfik) |  |  |
-| [System.Linq.Expressions](https://github.com/dotnet/corefx/labels/area-System.Linq.Expressions)   | [@VSadov](https://github.com/VSadov), [@OmarTawfik](https://github.com/OmarTawfik) |  |  |
-| [System.Linq.Parallel](https://github.com/dotnet/corefx/labels/area-System.Linq.Parallel)     | [@alexperovich](https://github.com/alexperovich), [@kouvel](https://github.com/kouvel) |  |  |
-| [System.Net](https://github.com/dotnet/corefx/labels/area-System.Net)                         |  |  |  |
-| [System.Numerics](https://github.com/dotnet/corefx/labels/area-System.Numerics)               | [@mellinoe](https://github.com/mellinoe) |  | Triaged |
-| [System.Reflection](https://github.com/dotnet/corefx/labels/area-System.Reflection)           |  |  |  |
-| [System.Reflection.Emit](https://github.com/dotnet/corefx/labels/area-System.Reflection.Emit) |  |  |  |
-| [System.Reflection.Metadata](https://github.com/dotnet/corefx/labels/area-System.Reflection.Metadata) | [@tmat](https://github.com/tmat), [@nguerrera](https://github.com/nguerrera) |  |  |
-| [System.Resources](https://github.com/dotnet/corefx/labels/area-System.Resources)             |  |  |  |
-| [System.Runtime](https://github.com/dotnet/corefx/labels/area-System.Runtime)                 |  |  |  |
-| [System.Runtime.CompilerServices](https://github.com/dotnet/corefx/labels/area-System.Runtime.CompilerServices)   |  |  |  |
-| [System.Runtime.Extensions](https://github.com/dotnet/corefx/labels/area-System.Runtime.Extensions)   |  |  |  |
-| [System.Runtime.InteropServices](https://github.com/dotnet/corefx/labels/area-System.Runtime.InteropServices) | [@tijoytom](https://github.com/tijoytom), [@yizhang82](https://github.com/yizhang82) |  |  |
-| [System.Security](https://github.com/dotnet/corefx/labels/area-System.Security)               | [@bartonjs](https://github.com/bartonjs), [@steveharter](https://github.com/steveharter) |  |  |
-| [System.ServiceModel](https://github.com/dotnet/corefx/labels/area-System.ServiceModel)       |  |  |  |
-| [System.ServiceProcess](https://github.com/dotnet/corefx/labels/area-System.ServiceProcess)   | [@Priya91](https://github.com/Priya91) |  |  |
-| [System.Text.Encoding](https://github.com/dotnet/corefx/labels/area-System.Text.Encoding)     | [@krwq](https://github.com/krwq), [@tarekgh](https://github.com/tarekgh) |  |  |
-| [System.Text.RegularExpressions](https://github.com/dotnet/corefx/labels/area-System.Text.RegularExpressions) | [@Priya91](https://github.com/Priya91) |  |  |
-| [System.Threading](https://github.com/dotnet/corefx/labels/area-System.Threading)             | [@kouvel](https://github.com/kouvel), [@alexperovich](https://github.com/alexperovich) |  | Triaged |
-| [System.Transactions](https://github.com/dotnet/corefx/labels/area-System.Transactions)       | [@jimcarley](https://github.com/jimcarley), [@qizhanMS](https://github.com/qizhanMS), [@dmetzgar](https://github.com/dmetzgar) |  |  |
-| [System.Xml](https://github.com/dotnet/corefx/labels/area-System.Xml)                         | [@sepidehMS](https://github.com/sepidehMS), [@krwq](https://github.com/krwq)  | | Triaged |
-| [System](https://github.com/dotnet/corefx/labels/area-System)                                 |  | Issues without clear contract association (cross-contract, or potentially new contracts) |  |
-| **Microsoft contract assemblies** | | |  |
-| [Microsoft.CSharp](https://github.com/dotnet/corefx/labels/area-Microsoft.CSharp)             |  |  |  |
-| [Microsoft.VisualBasic](https://github.com/dotnet/corefx/labels/area-Microsoft.VisualBasic)   |  |  |  |
-| [Microsoft.Win32](https://github.com/dotnet/corefx/labels/area-Microsoft.Win32)               |  |  |  |
+| Area                                                                                          | Owners / experts | Description |
+|-----------------------------------------------------------------------------------------------|------------------|-------------|
+| [area-Meta](https://github.com/dotnet/corefx/labels/area-Meta)                                | [@tarekgh](https://github.com/tarekgh) | Issues without clear association to any specific API/contract, e.g. <ul><li>new contract proposals</li><li>cross-cutting code/test pattern changes (e.g. FxCop failures)</li><li>project-wide docs</li></ul> **Pending triage** |
+| [Infrastructure](https://github.com/dotnet/corefx/labels/Infrastructure)                      | [@mellinoe](https://github.com/mellinoe), [@ericstj](https://github.com/ericstj), [@weshaggard](https://github.com/weshaggard) |Covers:<ul><li>Packaging</li><li>Build and test infra</li><li>VS intergation</li></ul><br/>**Pending triage** |
+| [area-Serialization](https://github.com/dotnet/corefx/labels/area-Serialization)              | [@shmao](https://github.com/shmao), [@zhenlan](https://github.com/zhenlan) | Packages:<ul><li>System.Runtime.Serialization.Xml</li><li>System.Runtime.Serialization.Json</li><li>System.Private.DataContractSerialization</li><li>System.Xml.XmlSerialization</li></ul> Excluded:<ul><li>System.Runtime.Serialization.Formatters</li></ul> |
+| **System contract assemblies** | | |
+| [System.AppContext](https://github.com/dotnet/corefx/labels/area-System.AppContext)           | [@AlexGhiondea](https://github.com/AlexGhiondea) | **Pending triage** |  |
+| [System.Buffers](https://github.com/dotnet/corefx/labels/area-System.Buffers)                 | [@alexperovich](https://github.com/alexperovich),  [@safern](https://github.com/safern) |  |
+| [System.CodeDom](https://github.com/dotnet/corefx/labels/area-System.CodeDom)                 | [@Priya91](https://github.com/Priya91) | **Pending triage** |
+| [System.Collections](https://github.com/dotnet/corefx/labels/area-System.Collections)         | [@Priya91](https://github.com/Priya91), [@ianhays](https://github.com/ianhays) |  |
+| [System.ComponentModel](https://github.com/dotnet/corefx/labels/area-System.ComponentModel)   |  [@safern](https://github.com/safern), [@AlexGhiondea](https://github.com/AlexGhiondea) | **Pending triage** |
+| [System.ComponentModel.DataAnnotations](https://github.com/dotnet/corefx/labels/area-System.ComponentModel.DataAnnotations) | [@lajones](https://github.com/lajones), [@divega](https://github.com/divega) | **Pending triage** |
+| [System.Composition](https://github.com/dotnet/corefx/labels/area-System.Composition)         | [@AlexGhiondea](https://github.com/AlexGhiondea) | **Pending triage** |
+| [System.Console](https://github.com/dotnet/corefx/labels/area-System.Console)                 | [@ianhays](https://github.com/ianhays) | **Pending triage** |
+| [System.Data](https://github.com/dotnet/corefx/labels/area-System.Data)                       | [@saurabh500](https://github.com/saurabh500), [@YoungGah](https://github.com/YoungGah) |  |
+| [System.Data.SqlClient](https://github.com/dotnet/corefx/labels/area-System.Data.SqlClient)   | [@saurabh500](https://github.com/saurabh500), [@YoungGah](https://github.com/YoungGah) | **Pending triage** |
+| [System.Diagnostics](https://github.com/dotnet/corefx/labels/area-System.Diagnostics)         | [@joperezr](https://github.com/dotnet/joperezr) |  |
+| [System.Diagnostics.Process](https://github.com/dotnet/corefx/labels/area-System.Diagnostics.Process) | [@Priya91](https://github.com/Priya91) | **Pending triage** |
+| [System.Diagnostics.Tracing](https://github.com/dotnet/corefx/labels/area-System.Diagnostics.Tracing) |  | **Pending triage** |
+| [System.DirectoryServices](https://github.com/dotnet/corefx/labels/area-System.DirectoryServices) | [@tquerec](https://github.com/tquerec) |  |
+| [System.Drawing](https://github.com/dotnet/corefx/labels/area-System.Drawing)                 | [@alexperovich](https://github.com/alexperovich) |  |
+| [System.Dynamic.Runtime](https://github.com/dotnet/corefx/labels/area-System.Dynamic.Runtime) | [@VSadov](https://github.com/VSadov), [@OmarTawfik](https://github.com/OmarTawfik) |  |
+| [System.Globalization](https://github.com/dotnet/corefx/labels/area-System.Globalization)     | [@krwq](https://github.com/krwq), [@tarekgh](https://github.com/tarekgh) |  |
+| [System.IO](https://github.com/dotnet/corefx/labels/area-System.IO)                           | [@JeremyKhune](https://github.com/JeremyKuhne), [@ianhays](https://github.com/ianhays) |  |
+| [System.IO.Compression](https://github.com/dotnet/corefx/labels/area-System.IO.Compression)   | [@ianhays](https://github.com/ianhays) |  |
+| [System.Linq](https://github.com/dotnet/corefx/labels/area-System.Linq)                       | [@VSadov](https://github.com/VSadov), [@OmarTawfik](https://github.com/OmarTawfik) | **Pending triage** |
+| [System.Linq.Expressions](https://github.com/dotnet/corefx/labels/area-System.Linq.Expressions)   | [@VSadov](https://github.com/VSadov), [@OmarTawfik](https://github.com/OmarTawfik) | **Pending triage** |
+| [System.Linq.Parallel](https://github.com/dotnet/corefx/labels/area-System.Linq.Parallel)     | [@alexperovich](https://github.com/alexperovich), [@kouvel](https://github.com/kouvel) | **Pending triage** |
+| [System.Net](https://github.com/dotnet/corefx/labels/area-System.Net)                         |  | **Pending triage** |
+| [System.Numerics](https://github.com/dotnet/corefx/labels/area-System.Numerics)               | [@mellinoe](https://github.com/mellinoe) |  |
+| [System.Reflection](https://github.com/dotnet/corefx/labels/area-System.Reflection)           |  | **Pending triage** |
+| [System.Reflection.Emit](https://github.com/dotnet/corefx/labels/area-System.Reflection.Emit) |  | **Pending triage** |
+| [System.Reflection.Metadata](https://github.com/dotnet/corefx/labels/area-System.Reflection.Metadata) | [@tmat](https://github.com/tmat), [@nguerrera](https://github.com/nguerrera) | **Pending triage** |
+| [System.Resources](https://github.com/dotnet/corefx/labels/area-System.Resources)             | [@ramarag](https://github.com/ramarag), [@tarekgh](https://github.com/tarekgh) | **Pending triage** |
+| [System.Runtime](https://github.com/dotnet/corefx/labels/area-System.Runtime)                 | [@AlexGhiondea](https://github.com/AlexGhiondea), [@joperezr](https://github.com/dotnet/joperezr) | Included:<ul><li>System.Runtime.Serialization.Formatters</li><li>System.Runtime.InteropServices.RuntimeInfo</li></ul>Excluded:<ul><li>Path -> System.IO</li><li>StopWatch -> System.Diagnostics</li><li>WebUtility -> System.Net</li></ul> **Pending triage** |
+| [System.Runtime.CompilerServices](https://github.com/dotnet/corefx/labels/area-System.Runtime.CompilerServices)   | [@AlexGhiondea](https://github.com/AlexGhiondea), [@joperezr](https://github.com/dotnet/joperezr) | **Pending triage** |
+| [System.Runtime.Extensions](https://github.com/dotnet/corefx/labels/area-System.Runtime.Extensions)   | [@AlexGhiondea](https://github.com/AlexGhiondea), [@joperezr](https://github.com/dotnet/joperezr) | **Pending triage** |
+| [System.Runtime.InteropServices](https://github.com/dotnet/corefx/labels/area-System.Runtime.InteropServices) | [@tijoytom](https://github.com/tijoytom), [@yizhang82](https://github.com/yizhang82) | Excluded:<ul><li>System.Runtime.InteropServices.RuntimeInfo</li></ul> |
+| [System.Security](https://github.com/dotnet/corefx/labels/area-System.Security)               | [@bartonjs](https://github.com/bartonjs), [@steveharter](https://github.com/steveharter) | **Pending triage** |
+| System.ServiceModel                                                                           | N/A | [dotnet/wcf](https://github.com/dotnet/wcf) |
+| [System.ServiceProcess](https://github.com/dotnet/corefx/labels/area-System.ServiceProcess)   | [@Priya91](https://github.com/Priya91) |  |
+| [System.Text.Encoding](https://github.com/dotnet/corefx/labels/area-System.Text.Encoding)     | [@krwq](https://github.com/krwq), [@tarekgh](https://github.com/tarekgh) |  |
+| [System.Text.RegularExpressions](https://github.com/dotnet/corefx/labels/area-System.Text.RegularExpressions) | [@Priya91](https://github.com/Priya91) | **Pending triage** |
+| [System.Threading](https://github.com/dotnet/corefx/labels/area-System.Threading)             | [@kouvel](https://github.com/kouvel), [@alexperovich](https://github.com/alexperovich) |  |
+| [System.Transactions](https://github.com/dotnet/corefx/labels/area-System.Transactions)       | [@jimcarley](https://github.com/jimcarley), [@qizhanMS](https://github.com/qizhanMS), [@dmetzgar](https://github.com/dmetzgar) |  |
+| [System.Xml](https://github.com/dotnet/corefx/labels/area-System.Xml)                         | [@sepidehMS](https://github.com/sepidehMS), [@krwq](https://github.com/krwq) |  |
+| **Microsoft contract assemblies** | | |
+| [Microsoft.CSharp](https://github.com/dotnet/corefx/labels/area-Microsoft.CSharp)             | [@VSadov](https://github.com/VSadov), [@OmarTawfik](https://github.com/OmarTawfik) | **Pending triage** |
+| [Microsoft.VisualBasic](https://github.com/dotnet/corefx/labels/area-Microsoft.VisualBasic)   | [@VSadov](https://github.com/VSadov), [@OmarTawfik](https://github.com/OmarTawfik) | **Pending triage** |
+| [Microsoft.Win32](https://github.com/dotnet/corefx/labels/area-Microsoft.Win32)               | [@sepidehMS](https://github.com/sepidehMS) |  |
+
 
 Note: Area triage will apply the new scheme (issue types and assignee) throughout 2016.
