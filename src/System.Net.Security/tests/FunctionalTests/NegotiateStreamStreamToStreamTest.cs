@@ -20,7 +20,6 @@ namespace System.Net.Security.Tests
         protected abstract Task AuthenticateAsClientAsync(NegotiateStream client, NetworkCredential credential, string targetName);
         protected abstract Task AuthenticateAsServerAsync(NegotiateStream server);
 
-        [OuterLoop] // TODO: Issue #11345
         [Fact]
         public void NegotiateStream_StreamToStream_Authentication_Success()
         {
@@ -72,7 +71,6 @@ namespace System.Net.Security.Tests
             }
         }
 
-        [OuterLoop] // TODO: Issue #11345
         [Fact]
         public void NegotiateStream_StreamToStream_Authentication_TargetName_Success()
         {
@@ -127,7 +125,6 @@ namespace System.Net.Security.Tests
             }
         }
 
-        [OuterLoop] // TODO: Issue #11345
         [Fact]
         public void NegotiateStream_StreamToStream_Authentication_EmptyCredentials_Fails()
         {
@@ -191,7 +188,6 @@ namespace System.Net.Security.Tests
             }
         }
 
-        [OuterLoop] // TODO: Issue #11345
         [Fact]
         public void NegotiateStream_StreamToStream_Successive_ClientWrite_Sync_Success()
         {
@@ -225,7 +221,6 @@ namespace System.Net.Security.Tests
             }
         }
 
-        [OuterLoop] // TODO: Issue #11345
         [Fact]
         public void NegotiateStream_StreamToStream_Successive_ClientWrite_Async_Success()
         {
@@ -258,6 +253,37 @@ namespace System.Net.Security.Tests
                 finished = Task.WaitAll(auth, TestConfiguration.PassingTestTimeoutMilliseconds);
                 Assert.True(finished, "Send/receive completed in the allotted time");
                 Assert.True(_sampleMsg.SequenceEqual(recvBuf));
+            }
+        }
+
+
+        [Fact]
+        public void NegotiateStream_StreamToStream_Flush_Propagated()
+        {
+            VirtualNetwork network = new VirtualNetwork();
+
+            using (var stream = new VirtualNetworkStream(network, isServer: false))
+            using (var negotiateStream = new NegotiateStream(stream))
+            {
+                Assert.False(stream.HasBeenSyncFlushed);
+                negotiateStream.Flush();
+                Assert.True(stream.HasBeenSyncFlushed);
+            }
+        }
+
+        [Fact]
+        public void NegotiateStream_StreamToStream_FlushAsync_Propagated()
+        {
+            VirtualNetwork network = new VirtualNetwork();
+
+            using (var stream = new VirtualNetworkStream(network, isServer: false))
+            using (var negotiateStream = new NegotiateStream(stream))
+            {
+                Task task = negotiateStream.FlushAsync();
+
+                Assert.False(task.IsCompleted);
+                stream.CompleteAsyncFlush();
+                Assert.True(task.IsCompleted);
             }
         }
     }

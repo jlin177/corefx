@@ -30,13 +30,8 @@ namespace System.ComponentModel.Design
         ///       Gets or sets the license usage mode.
         ///    </para>
         /// </summary>
-        public override LicenseUsageMode UsageMode
-        {
-            get
-            {
-                return LicenseUsageMode.Designtime;
-            }
-        }
+        public override LicenseUsageMode UsageMode => LicenseUsageMode.Designtime;
+
         /// <summary>
         ///    <para>
         ///       Gets a saved license key.
@@ -87,9 +82,6 @@ namespace System.ComponentModel.Design
                     savedLicenseKeys = new Hashtable();
                 }
 
-                Uri licenseFile = null;
-                // the AppDomain.CurrentDomain.SetupInformation.LicenseFile always returns null.
-                // This means we have to find the license file using the fallback logic below.
                 if (resourceAssembly == null)
                 {
                     resourceAssembly = Assembly.GetEntryAssembly();
@@ -115,8 +107,7 @@ namespace System.ComponentModel.Design
                         //
                         string fileName;
 
-                        // TODO NESTANDARD2.0: asm.EscapedCodeBase
-                        fileName = GetLocalPath(System.Stub.Assembly_EscapedCodeBase());
+                        fileName = GetLocalPath(asm.EscapedCodeBase);
                         fileName = new FileInfo(fileName).Name;
 
                         Stream s = asm.GetManifestResourceStream(fileName + ".licenses");
@@ -139,8 +130,7 @@ namespace System.ComponentModel.Design
                     Debug.WriteLineIf(s_runtimeLicenseContextSwitch.TraceVerbose, "resourceAssembly is not null");
                     string fileName;
 
-                    //TODO NETSTANDARD2.0: resourceAssembly.EscapedCodeBase
-                    fileName = GetLocalPath(System.Stub.Assembly_EscapedCodeBase());
+                    fileName = GetLocalPath(resourceAssembly.EscapedCodeBase);
 
                     fileName = Path.GetFileName(fileName); // we don't want to use FileInfo here... it requests FileIOPermission that we
                     // might now have... see VSWhidbey 527758
@@ -174,22 +164,8 @@ namespace System.ComponentModel.Design
                         DesigntimeLicenseContextSerializer.Deserialize(s, fileName.ToUpper(CultureInfo.InvariantCulture), this);
                     }
                 }
-
-                if (licenseFile != null)
-                {
-                    Debug.WriteLineIf(s_runtimeLicenseContextSwitch.TraceVerbose, "licenseFile: " + licenseFile.ToString());
-                    Debug.WriteLineIf(s_runtimeLicenseContextSwitch.TraceVerbose, "opening licenses file over URI " + licenseFile.ToString());
-                    Stream s = OpenRead(licenseFile);
-                    if (s != null)
-                    {
-                        string[] segments = licenseFile.Segments;
-                        string licFileName = segments[segments.Length - 1];
-                        string key = licFileName.Substring(0, licFileName.LastIndexOf("."));
-                        DesigntimeLicenseContextSerializer.Deserialize(s, key.ToUpper(CultureInfo.InvariantCulture), this);
-                    }
-                }
             }
-            Debug.WriteLineIf(s_runtimeLicenseContextSwitch.TraceVerbose, "returning : " + (string)savedLicenseKeys[type.AssemblyQualifiedName]);
+            Debug.WriteLineIf(s_runtimeLicenseContextSwitch.TraceVerbose, $"returning : {(string)savedLicenseKeys[type.AssemblyQualifiedName]}");
             return (string)savedLicenseKeys[type.AssemblyQualifiedName];
         }
 
@@ -222,24 +198,6 @@ namespace System.ComponentModel.Design
             //case insensitive match we found
             //
             return satellite.GetManifestResourceStream(name);
-        }
-
-        private static Stream OpenRead(Uri resourceUri)
-        {
-            Stream result = null;
-
-            try
-            {
-                WebClient webClient = new WebClient();
-                webClient.Credentials = CredentialCache.DefaultCredentials;
-                result = webClient.OpenRead(resourceUri.ToString());
-            }
-            catch (Exception e)
-            {
-                Debug.Fail(e.ToString());
-            }
-
-            return result;
         }
     }
 }

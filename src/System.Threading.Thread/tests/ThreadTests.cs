@@ -5,6 +5,7 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Threading.Tests;
 using Xunit;
@@ -19,10 +20,34 @@ namespace System.Threading.Threads.Tests
         [Fact]
         public static void ConstructorTest()
         {
-            var t = new Thread(() => { });
-            t = new Thread(() => { }, 0);
-            t = new Thread(state => { });
-            t = new Thread(state => { }, 0);
+            Action<Thread> startThreadAndJoin =
+                t =>
+                {
+                    t.IsBackground = true;
+                    t.Start();
+                    Assert.True(t.Join(UnexpectedTimeoutMilliseconds));
+                };
+            Action<int> verifyStackSize =
+                stackSizeBytes =>
+                {
+                    // Try to stack-allocate an array to verify that close to the expected amount of stack space is actually
+                    // available
+                    int bufferSizeBytes = Math.Max(16 << 10, stackSizeBytes - (64 << 10));
+                    unsafe
+                    {
+                        byte* buffer = stackalloc byte[bufferSizeBytes];
+                        Volatile.Write(ref buffer[0], 0xff);
+                        Volatile.Write(ref buffer[bufferSizeBytes - 1], 0xff);
+                    }
+                };
+            startThreadAndJoin(new Thread(() => verifyStackSize(0)));
+            startThreadAndJoin(new Thread(() => verifyStackSize(0), 0));
+            startThreadAndJoin(new Thread(() => verifyStackSize(64 << 10), 64 << 10)); // 64 KB
+            startThreadAndJoin(new Thread(() => verifyStackSize(16 << 20), 16 << 20)); // 16 MB
+            startThreadAndJoin(new Thread(state => verifyStackSize(0)));
+            startThreadAndJoin(new Thread(state => verifyStackSize(0), 0));
+            startThreadAndJoin(new Thread(state => verifyStackSize(64 << 10), 64 << 10)); // 64 KB
+            startThreadAndJoin(new Thread(state => verifyStackSize(16 << 20), 16 << 20)); // 16 MB
 
             Assert.Throws<ArgumentNullException>(() => new Thread((ThreadStart)null));
             Assert.Throws<ArgumentNullException>(() => new Thread((ThreadStart)null, 0));
@@ -115,7 +140,7 @@ namespace System.Threading.Threads.Tests
 
         [Theory]
         [MemberData(nameof(ApartmentStateTest_MemberData))]
-        [PlatformSpecific(TestPlatforms.Windows)]
+        [PlatformSpecific(TestPlatforms.Windows)]  // Expected behavior differs on Unix and Windows
         public static void GetSetApartmentStateTest_ChangeAfterThreadStarted_Windows(
             Func<Thread, ApartmentState> getApartmentState,
             Func<Thread, ApartmentState, int> setApartmentState,
@@ -137,7 +162,7 @@ namespace System.Threading.Threads.Tests
 
         [Theory]
         [MemberData(nameof(ApartmentStateTest_MemberData))]
-        [PlatformSpecific(TestPlatforms.Windows)]
+        [PlatformSpecific(TestPlatforms.Windows)]  // Expected behavior differs on Unix and Windows
         public static void ApartmentStateTest_ChangeBeforeThreadStarted_Windows(
             Func<Thread, ApartmentState> getApartmentState,
             Func<Thread, ApartmentState, int> setApartmentState,
@@ -152,13 +177,13 @@ namespace System.Threading.Threads.Tests
             Assert.Equal(setType == 0 ? 0 : 2, setApartmentState(t, ApartmentState.MTA)); // cannot be changed more than once
             Assert.Equal(ApartmentState.STA, getApartmentState(t));
             t.Start();
-            t.Join(UnexpectedTimeoutMilliseconds);
+            Assert.True(t.Join(UnexpectedTimeoutMilliseconds));
             Assert.Equal(ApartmentState.STA, apartmentStateInThread);
         }
 
         [Theory]
         [MemberData(nameof(ApartmentStateTest_MemberData))]
-        [PlatformSpecific(TestPlatforms.AnyUnix)]
+        [PlatformSpecific(TestPlatforms.AnyUnix)]  // Expected behavior differs on Unix and Windows
         public static void ApartmentStateTest_Unix(
             Func<Thread, ApartmentState> getApartmentState,
             Func<Thread, ApartmentState, int> setApartmentState,
@@ -268,7 +293,7 @@ namespace System.Threading.Threads.Tests
             var t = new Thread(() => otherThread = Thread.CurrentThread);
             t.IsBackground = true;
             t.Start();
-            t.Join(UnexpectedTimeoutMilliseconds);
+            Assert.True(t.Join(UnexpectedTimeoutMilliseconds));
 
             Assert.Equal(t, otherThread);
 
@@ -295,7 +320,7 @@ namespace System.Threading.Threads.Tests
 
             Assert.False(t.IsAlive);
             t.Start();
-            t.Join(UnexpectedTimeoutMilliseconds);
+            Assert.True(t.Join(UnexpectedTimeoutMilliseconds));
             Assert.True(isAliveWhenRunning);
             Assert.False(t.IsAlive);
         }
@@ -308,7 +333,7 @@ namespace System.Threading.Threads.Tests
             t.IsBackground = true;
             Assert.True(t.IsBackground);
             t.Start();
-            t.Join(UnexpectedTimeoutMilliseconds);
+            Assert.True(t.Join(UnexpectedTimeoutMilliseconds));
 
             // Cannot use this property after the thread is dead
             Assert.Throws<ThreadStateException>(() => t.IsBackground);
@@ -331,7 +356,7 @@ namespace System.Threading.Threads.Tests
             Assert.False(t.IsThreadPoolThread);
 
             t.Start();
-            t.Join(UnexpectedTimeoutMilliseconds);
+            Assert.True(t.Join(UnexpectedTimeoutMilliseconds));
             Assert.False(isThreadPoolThread);
 
             var e = new ManualResetEvent(false);
@@ -619,7 +644,7 @@ namespace System.Threading.Threads.Tests
         public static void InterruptTest()
         {
             // Interrupting a thread that is not blocked does not do anything, but once the thread starts blocking, it gets
-            // interrupted
+            // interrupted and does not auto-reset the signaled event
             var threadReady = new AutoResetEvent(false);
             var continueThread = new AutoResetEvent(false);
             bool continueThreadBool = false;
@@ -635,10 +660,12 @@ namespace System.Threading.Threads.Tests
             t.IsBackground = true;
             t.Start();
             threadReady.CheckedWait();
+            continueThread.Set();
             t.Interrupt();
             Assert.False(threadReady.WaitOne(ExpectedTimeoutMilliseconds));
             Volatile.Write(ref continueThreadBool, true);
             waitForThread();
+            Assert.True(continueThread.WaitOne(0));
 
             // Interrupting a dead thread does nothing
             t.Interrupt();
@@ -663,6 +690,32 @@ namespace System.Threading.Threads.Tests
         }
 
         [Fact]
+        [SkipOnTargetFramework(TargetFrameworkMonikers.NetFramework)]
+        public static void InterruptInFinallyBlockTest_SkipOnDesktopFramework()
+        {
+            // A wait in a finally block can be interrupted. The desktop framework applies the same rules as thread abort, and
+            // does not allow thread interrupt in a finally block. There is nothing special about thread interrupt that requires
+            // not allowing it in finally blocks, so this behavior has changed in .NET Core.
+            var continueThread = new AutoResetEvent(false);
+            Action waitForThread;
+            Thread t =
+                ThreadTestHelpers.CreateGuardedThread(out waitForThread, () =>
+                {
+                    try
+                    {
+                    }
+                    finally
+                    {
+                        Assert.Throws<ThreadInterruptedException>(() => continueThread.CheckedWait());
+                    }
+                });
+            t.IsBackground = true;
+            t.Start();
+            t.Interrupt();
+            waitForThread();
+        }
+
+        [Fact]
         public static void JoinTest()
         {
             var threadReady = new ManualResetEvent(false);
@@ -678,6 +731,7 @@ namespace System.Threading.Threads.Tests
             t.IsBackground = true;
 
             Assert.Throws<ArgumentOutOfRangeException>(() => t.Join(-2));
+            Assert.Throws<ArgumentOutOfRangeException>(() => t.Join(TimeSpan.FromMilliseconds(-2)));
             Assert.Throws<ArgumentOutOfRangeException>(() => t.Join(TimeSpan.FromMilliseconds((double)int.MaxValue + 1)));
 
             Assert.Throws<ThreadStateException>(() => t.Join());
@@ -758,6 +812,19 @@ namespace System.Threading.Threads.Tests
             Thread.EndCriticalRegion();
             Thread.BeginThreadAffinity();
             Thread.EndThreadAffinity();
+
+            ThreadTestHelpers.RunTestInBackgroundThread(() =>
+            {
+                // TODO: Port tests for these once all of the necessary interop APIs are available
+                Thread.CurrentThread.DisableComObjectEagerCleanup();
+                Marshal.CleanupUnusedObjectsInCurrentContext();
+            });
+
+#pragma warning disable 618 // obsolete members
+            Assert.Throws<InvalidOperationException>(() => Thread.CurrentThread.GetCompressedStack());
+            Assert.Throws<InvalidOperationException>(() => Thread.CurrentThread.SetCompressedStack(CompressedStack.Capture()));
+#pragma warning restore 618 // obsolete members
+
             Thread.MemoryBarrier();
 
             var ad = Thread.GetDomain();

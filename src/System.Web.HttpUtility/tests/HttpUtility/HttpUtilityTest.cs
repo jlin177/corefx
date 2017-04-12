@@ -1,11 +1,15 @@
-﻿using System.Collections.Generic;
+﻿// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
+
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Web;
 using Xunit;
 
-namespace System.Collections.Specialized.Tests
+namespace System.Web.Tests
 {
     public class HttpUtilityTest
     {
@@ -399,6 +403,25 @@ namespace System.Collections.Specialized.Tests
                 new object[] {"http://127.0.0.1:8080/appDir/page.aspx?foo=b%uu0061r", "http://127.0.0.1:8080/appDir/page.aspx?foo=b%uu0061r"},
             };
 
+        public static IEnumerable<object[]> UrlDecodeDataToBytes =>
+            new[]
+            {
+                new object[] { "http://127.0.0.1:8080/appDir/page.aspx?foo=bar", "http://127.0.0.1:8080/appDir/page.aspx?foo=b%61r"},
+                new object[] {"http://127.0.0.1:8080/appDir/page.aspx?foo=b%ar", "http://127.0.0.1:8080/appDir/page.aspx?foo=b%%61r"},
+                new object[] {"http://127.0.0.1:8080/app%Dir/page.aspx?foo=b%ar", "http://127.0.0.1:8080/app%Dir/page.aspx?foo=b%%61r"},
+                new object[] {"http://127.0.0.1:8080/app%%Dir/page.aspx?foo=b%%r", "http://127.0.0.1:8080/app%%Dir/page.aspx?foo=b%%r"},
+                new object[] {"http://127.0.0.1:8080/appDir/page.aspx?foo=ba%r", "http://127.0.0.1:8080/appDir/page.aspx?foo=b%61%r"},
+                new object[] {"http://127.0.0.1:8080/appDir/page.aspx?foo=b%uu0061r", "http://127.0.0.1:8080/appDir/page.aspx?foo=b%uu0061r"},
+            };
+
+        public static IEnumerable<object[]> UrlDecodeDataToBytes_netcoreapp =>
+            new[]
+            {
+                new object[] {"http://127.0.0.1:8080/appDir/page.aspx?foo=bar", "http://127.0.0.1:8080/appDir/page.aspx?foo=b%u0061r"},
+                new object[] {"http://127.0.0.1:8080/appDir/page.aspx?foo=b%ar", "http://127.0.0.1:8080/appDir/page.aspx?foo=b%%u0061r"},
+            };
+
+
         [Theory]
         [MemberData(nameof(UrlDecodeData))]
         public void UrlDecode(string decoded, string encoded)
@@ -407,7 +430,15 @@ namespace System.Collections.Specialized.Tests
         }
 
         [Theory]
-        [MemberData(nameof(UrlDecodeData))]
+        [MemberData(nameof(UrlDecodeDataToBytes_netcoreapp))]
+        [SkipOnTargetFramework(TargetFrameworkMonikers.NetFramework, "dotnet/corefx #17627")]
+        public void UrlDecodeToBytes_Netcoreapp(string decoded, string encoded)
+        {
+            Assert.Equal(decoded, Encoding.UTF8.GetString(HttpUtility.UrlDecodeToBytes(encoded, Encoding.UTF8)));
+        }
+
+        [Theory]
+        [MemberData(nameof(UrlDecodeDataToBytes))]
         public void UrlDecodeToBytes(string decoded, string encoded)
         {
             Assert.Equal(decoded, Encoding.UTF8.GetString(HttpUtility.UrlDecodeToBytes(encoded, Encoding.UTF8)));

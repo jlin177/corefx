@@ -98,7 +98,7 @@ namespace System.ComponentModel.TypeConverterTests
         [MemberData(nameof(SizeFData))]
         public void ConvertFrom(float width, float height)
         {
-            TestConvertFromString(new SizeF(width, height), $"{width:G9}, {height:G9}");
+            TestConvertFromString(new SizeF(width, height), FormattableString.Invariant($"{width:G9}, {height:G9}"));
         }
 
         [Theory]
@@ -136,7 +136,7 @@ namespace System.ComponentModel.TypeConverterTests
         [MemberData(nameof(SizeFData))]
         public void ConvertTo(float width, float height)
         {
-            TestConvertToString(new SizeF(width, height), $"{width:G9}, {height:G9}");
+            TestConvertToString(new SizeF(width, height), FormattableString.Invariant($"{width:G9}, {height:G9}"));
         }
 
         [Theory]
@@ -153,13 +153,19 @@ namespace System.ComponentModel.TypeConverterTests
         [Fact]
         public void ConvertTo_NullCulture()
         {
-            Assert.Equal("1, 1", Converter.ConvertTo(null, null, new SizeF(1, 1), typeof(string)));
+            string listSep = CultureInfo.CurrentCulture.TextInfo.ListSeparator;
+            Assert.Equal($"1{listSep} 1", Converter.ConvertTo(null, null, new SizeF(1, 1), typeof(string)));
         }
 
         [Fact]
         public void CreateInstance_CaseSensitive()
         {
-            Assert.Throws<ArgumentException>(() =>
+            // NET Framework throws NullReferenceException but we want it to be friendly on Core so it 
+            // correctly throws an ArgumentException
+            Type expectedExceptionType =
+                PlatformDetection.IsFullFramework ? typeof(NullReferenceException) : typeof(ArgumentException);
+
+            Assert.Throws(expectedExceptionType, () =>
             {
                 Converter.CreateInstance(null, new Dictionary<string, object>
                 {
@@ -174,16 +180,14 @@ namespace System.ComponentModel.TypeConverterTests
         {
             var pt = new SizeF(1, 1);
             var props = Converter.GetProperties(new SizeF(1, 1));
-            Assert.Equal(3, props.Count);
+            Assert.Equal(2, props.Count);
             Assert.Equal(1f, props["Width"].GetValue(pt));
             Assert.Equal(1f, props["Height"].GetValue(pt));
-            Assert.Equal(false, props["IsEmpty"].GetValue(pt));
 
             props = Converter.GetProperties(null, new SizeF(1, 1));
-            Assert.Equal(3, props.Count);
+            Assert.Equal(2, props.Count);
             Assert.Equal(1f, props["Width"].GetValue(pt));
             Assert.Equal(1f, props["Height"].GetValue(pt));
-            Assert.Equal(false, props["IsEmpty"].GetValue(pt));
 
             props = Converter.GetProperties(null, new SizeF(1, 1), null);
             Assert.Equal(3, props.Count);
@@ -191,19 +195,22 @@ namespace System.ComponentModel.TypeConverterTests
             Assert.Equal(1f, props["Height"].GetValue(pt));
             Assert.Equal(false, props["IsEmpty"].GetValue(pt));
 
-            props = Converter.GetProperties(null, new SizeF(1, 1),
-                typeof(SizeF).GetCustomAttributes(true).OfType<Attribute>().ToArray());
+            props = Converter.GetProperties(null, new SizeF(1, 1), new Attribute[0]);
             Assert.Equal(3, props.Count);
             Assert.Equal(1f, props["Width"].GetValue(pt));
             Assert.Equal(1f, props["Height"].GetValue(pt));
             Assert.Equal(false, props["IsEmpty"].GetValue(pt));
+
+            // Pick an attibute that cannot be applied to properties to make sure everything gets filtered
+            props = Converter.GetProperties(null, new SizeF(1, 1), new Attribute[] { new System.Reflection.AssemblyCopyrightAttribute("")});
+            Assert.Equal(0, props.Count);
         }
 
         [Theory]
         [MemberData(nameof(SizeFData))]
         public void ConvertFromInvariantString(float width, float height)
         {
-            var point = (SizeF)Converter.ConvertFromInvariantString($"{width:G9}, {height:G9}");
+            var point = (SizeF)Converter.ConvertFromInvariantString(FormattableString.Invariant($"{width:G9}, {height:G9}"));
             Assert.Equal(width, point.Width);
             Assert.Equal(height, point.Height);
         }
@@ -248,7 +255,7 @@ namespace System.ComponentModel.TypeConverterTests
         public void ConvertToInvariantString(float width, float height)
         {
             var str = Converter.ConvertToInvariantString(new SizeF(width, height));
-            Assert.Equal($"{width:G9}, {height:G9}", str);
+            Assert.Equal(FormattableString.Invariant($"{width:G9}, {height:G9}"), str);
         }
 
         [Theory]

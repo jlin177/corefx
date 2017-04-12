@@ -30,6 +30,7 @@ namespace System
         public event System.EventHandler DomainUnload { add { } remove { } }
         public event System.EventHandler<System.Runtime.ExceptionServices.FirstChanceExceptionEventArgs> FirstChanceException { add { } remove { } }
         public event System.EventHandler ProcessExit { add { } remove { } }
+        public event ResolveEventHandler ReflectionOnlyAssemblyResolve { add { } remove { } }
         public event System.ResolveEventHandler ResourceResolve { add { } remove { } }
         public event System.ResolveEventHandler TypeResolve { add { } remove { } }
         public string ApplyPolicy(string assemblyName) { throw null; }
@@ -53,22 +54,24 @@ namespace System
         public System.Reflection.Assembly Load(string assemblyString) { throw null; }
         public System.Reflection.Assembly[] ReflectionOnlyGetAssemblies() { throw null; }
         public void SetData(string name, object data) { }
+        [ObsoleteAttribute("AppDomain.SetDynamicBase has been deprecated. Please investigate the use of AppDomainSetup.DynamicBase instead. http://go.microsoft.com/fwlink/?linkid=14202")]
+        public void SetDynamicBase(string path) { }
         public void SetPrincipalPolicy(System.Security.Principal.PrincipalPolicy policy) { }
         public void SetThreadPrincipal(System.Security.Principal.IPrincipal principal) { }
         public override string ToString() { throw null; }
         public static void Unload(System.AppDomain domain) { }
         public bool ShadowCopyFiles { get { throw null; } }
-        [Obsolete("AppDomain.AppendPrivatePath has been deprecated.")]
+        [Obsolete("AppDomain.AppendPrivatePath has been deprecated. Please investigate the use of AppDomainSetup.PrivateBinPath instead. http://go.microsoft.com/fwlink/?linkid=14202")]
         public void AppendPrivatePath(string path) { }
-        [Obsolete("AppDomain.ClearPrivatePath has been deprecated.")]
+        [Obsolete("AppDomain.ClearPrivatePath has been deprecated. Please investigate the use of AppDomainSetup.PrivateBinPath instead. http://go.microsoft.com/fwlink/?linkid=14202")]
         public void ClearPrivatePath() { }
-        [Obsolete("AppDomain.ClearShadowCopyPath has been deprecated.")]
+        [Obsolete("AppDomain.ClearShadowCopyPath has been deprecated. Please investigate the use of AppDomainSetup.ShadowCopyDirectories instead. http://go.microsoft.com/fwlink/?linkid=14202")]
         public void ClearShadowCopyPath() { }
-        [Obsolete("AppDomain.SetCachePath has been deprecated.")]
+        [Obsolete("AppDomain.SetCachePath has been deprecated. Please investigate the use of AppDomainSetup.CachePath instead. http://go.microsoft.com/fwlink/?linkid=14202")]
         public void SetCachePath(string path) { }
-        [Obsolete("AppDomain.SetShadowCopyFiles has been deprecated.")]
+        [Obsolete("AppDomain.SetShadowCopyFiles has been deprecated. Please investigate the use of AppDomainSetup.ShadowCopyFiles instead. http://go.microsoft.com/fwlink/?linkid=14202")]
         public void SetShadowCopyFiles() { }
-        [Obsolete("AppDomain.SetShadowCopyPath has been deprecated.")]
+        [Obsolete("AppDomain.SetShadowCopyPath has been deprecated. Please investigate the use of AppDomainSetup.ShadowCopyDirectories instead. http://go.microsoft.com/fwlink/?linkid=14202")]
         public void SetShadowCopyPath(string path) { }
     }
 
@@ -134,13 +137,9 @@ namespace System
         public static byte[] GetBytes(uint value) { throw null; }
         [System.CLSCompliantAttribute(false)]
         public static byte[] GetBytes(ulong value) { throw null; }
-#if netcoreapp11
         public static float Int32BitsToSingle(int value) { throw null; }
-#endif
         public static double Int64BitsToDouble(long value) { throw null; }
-#if netcoreapp11
         public static int SingleToInt32Bits(float value) { throw null; }
-#endif
         public static bool ToBoolean(byte[] value, int startIndex) { throw null; }
         public static char ToChar(byte[] value, int startIndex) { throw null; }
         public static double ToDouble(byte[] value, int startIndex) { throw null; }
@@ -697,6 +696,24 @@ namespace System
         User = 1,
         Machine = 2,
     }
+    public enum LoaderOptimization
+    {
+        [System.ObsoleteAttribute("This method has been deprecated. Please use Assembly.Load() instead. http://go.microsoft.com/fwlink/?linkid=14202")]
+        DisallowBindings = 4,
+        [System.ObsoleteAttribute("This method has been deprecated. Please use Assembly.Load() instead. http://go.microsoft.com/fwlink/?linkid=14202")]
+        DomainMask = 3,
+        MultiDomain = 2,
+        MultiDomainHost = 3,
+        NotSpecified = 0,
+        SingleDomain = 1,
+    }
+    [System.AttributeUsageAttribute(System.AttributeTargets.Method)]
+    public sealed partial class LoaderOptimizationAttribute : System.Attribute
+    {
+        public LoaderOptimizationAttribute(byte value) { }
+        public LoaderOptimizationAttribute(System.LoaderOptimization value) { }
+        public System.LoaderOptimization Value { get { throw null; } }
+    }
     public static partial class Math
     {
         public static decimal Abs(decimal value) { throw null; }
@@ -714,7 +731,6 @@ namespace System
         public static long BigMul(int a, int b) { throw null; }
         public static decimal Ceiling(decimal d) { throw null; }
         public static double Ceiling(double a) { throw null; }
-#if netcoreapp11
         public static byte Clamp(byte value, byte min, byte max) { throw null; }
         public static decimal Clamp(decimal value, decimal min, decimal max) { throw null; }
         public static double Clamp(double value, double min, double max) { throw null; }
@@ -730,7 +746,6 @@ namespace System
         public static uint Clamp(uint value, uint min, uint max) { throw null; }
         [System.CLSCompliantAttribute(false)]
         public static ulong Clamp(ulong value, ulong min, ulong max) { throw null; }
-#endif
         public static double Cos(double d) { throw null; }
         public static double Cosh(double value) { throw null; }
         public static int DivRem(int a, int b, out int result) { throw null; }
@@ -797,7 +812,6 @@ namespace System
         public static decimal Truncate(decimal d) { throw null; }
         public static double Truncate(double d) { throw null; }
     }
-#if netcoreapp11
     public static partial class MathF
     {
         public static float Abs(float x) { throw null; }
@@ -821,7 +835,7 @@ namespace System
         public static float Round(float x, int digits) { throw null; }
         public static float Round(float x, int digits, System.MidpointRounding mode) { throw null; }
         public static float Round(float x, System.MidpointRounding mode) { throw null; }
-        public static int Sign(float x) { return default(int); }
+        public static int Sign(float x) { throw null; }
         public static float Sin(float x) { throw null; }
         public static float Sinh(float x) { throw null; }
         public static float Sqrt(float x) { throw null; }
@@ -829,7 +843,6 @@ namespace System
         public static float Tanh(float x) { throw null; }
         public static float Truncate(float x) { throw null; }
     }
-#endif
     public sealed class OperatingSystem : System.ICloneable, System.Runtime.Serialization.ISerializable
     {
         private OperatingSystem() { }
@@ -926,6 +939,22 @@ namespace System
     public partial class ContextStaticAttribute : System.Attribute
     {
         public ContextStaticAttribute() { }
+    }
+    public static class StringNormalizationExtensions
+    {
+        public static bool IsNormalized(this string value) { throw null; }
+        [System.Security.SecurityCritical]
+        public static bool IsNormalized(this string value, System.Text.NormalizationForm normalizationForm) { throw null; }
+        public static String Normalize(this string value) { throw null; }
+        [System.Security.SecurityCritical]
+        public static String Normalize(this string value, System.Text.NormalizationForm normalizationForm) { throw null; }
+    }
+}
+namespace System.Globalization
+{
+    public static partial class GlobalizationExtensions
+    {
+        public static System.StringComparer GetStringComparer(this System.Globalization.CompareInfo compareInfo, System.Globalization.CompareOptions options) { throw null; }
     }
 }
 namespace System.Collections
@@ -1126,6 +1155,7 @@ namespace System.IO
     {
         public static readonly char AltDirectorySeparatorChar;
         public static readonly char DirectorySeparatorChar;
+        [ObsoleteAttribute("Please use GetInvalidPathChars or GetInvalidFileNameChars instead.")]
         public static readonly char[] InvalidPathChars;
         public static readonly char PathSeparator;
         public static readonly char VolumeSeparatorChar;
@@ -1147,9 +1177,7 @@ namespace System.IO
         public static string GetTempPath() { throw null; }
         public static bool HasExtension(string path) { throw null; }
         public static bool IsPathRooted(string path) { throw null; }
-#if netcoreapp11
-        public static string GetRelativePath(string relativeTo, string path) { return default(string); }
-#endif
+        public static string GetRelativePath(string relativeTo, string path) { throw null; }
     }
 
     public partial class BinaryReader : System.IDisposable
@@ -1250,10 +1278,8 @@ namespace System.IO
         public override void Write(byte[] array, int offset, int count) { }
         public override System.Threading.Tasks.Task WriteAsync(byte[] buffer, int offset, int count, System.Threading.CancellationToken cancellationToken) { throw null; }
         public override void WriteByte(byte value) { }
-#if netcoreapp11
-        public Stream UnderlyingStream { get { return default(Stream); } }
-        public int BufferSize { get { return 0; } }
-#endif
+        public Stream UnderlyingStream { get { throw null; } }
+        public int BufferSize { get { throw null; } }
     }
     public partial class EndOfStreamException : System.IO.IOException
     {
@@ -1285,9 +1311,7 @@ namespace System.IO
         public override long Position { get { throw null; } set { } }
         public override System.IAsyncResult BeginRead(byte[] buffer, int offset, int count, System.AsyncCallback callback, object state) { throw null; }
         public override System.IAsyncResult BeginWrite(byte[] buffer, int offset, int count, System.AsyncCallback callback, object state) { throw null; }
-#if netcoreapp11
         public override void CopyTo(System.IO.Stream destination, int bufferSize) { }
-#endif
         public override System.Threading.Tasks.Task CopyToAsync(System.IO.Stream destination, int bufferSize, System.Threading.CancellationToken cancellationToken) { throw null; }
         protected override void Dispose(bool disposing) { }
         public override int EndRead(System.IAsyncResult asyncResult) { throw null; }
@@ -1440,7 +1464,7 @@ namespace System.IO
         public virtual System.Threading.Tasks.Task FlushAsync() { throw null; }
         public static System.IO.TextWriter Synchronized(System.IO.TextWriter writer) { throw null; }
         public virtual void Write(bool value) { }
-        public abstract void Write(char value);
+        public virtual void Write(char value) { }
         public virtual void Write(char[] buffer) { }
         public virtual void Write(char[] buffer, int index, int count) { }
         public virtual void Write(decimal value) { }
@@ -1494,7 +1518,9 @@ namespace System.Net
     public static partial class WebUtility
     {
         public static string HtmlDecode(string value) { throw null; }
+        public static void HtmlDecode(string value, System.IO.TextWriter output) { }
         public static string HtmlEncode(string value) { throw null; }
+        public static void HtmlEncode(string value, System.IO.TextWriter output) { }
         public static string UrlDecode(string encodedValue) { throw null; }
         public static byte[] UrlDecodeToBytes(byte[] encodedValue, int offset, int count) { throw null; }
         public static string UrlEncode(string value) { throw null; }
@@ -1551,16 +1577,16 @@ namespace System.Security.Permissions
     {
         Assert = 3,
         Demand = 2,
-        [System.ObsoleteAttribute]
+        [System.ObsoleteAttribute("Deny is obsolete and will be removed in a future release of the .NET Framework. See http://go.microsoft.com/fwlink/?LinkID=155570 for more information.")]
         Deny = 4,
         InheritanceDemand = 7,
         LinkDemand = 6,
         PermitOnly = 5,
-        [System.ObsoleteAttribute]
+        [System.ObsoleteAttribute("Assembly level declarative security is obsolete and is no longer enforced by the CLR by default. See http://go.microsoft.com/fwlink/?LinkID=155570 for more information.")]
         RequestMinimum = 8,
-        [System.ObsoleteAttribute]
+        [System.ObsoleteAttribute("Assembly level declarative security is obsolete and is no longer enforced by the CLR by default. See http://go.microsoft.com/fwlink/?LinkID=155570 for more information.")]
         RequestOptional = 9,
-        [System.ObsoleteAttribute]
+        [System.ObsoleteAttribute("Assembly level declarative security is obsolete and is no longer enforced by the CLR by default. See http://go.microsoft.com/fwlink/?LinkID=155570 for more information.")]
         RequestRefuse = 10,
     }
     [System.AttributeUsageAttribute((System.AttributeTargets)109, AllowMultiple = true, Inherited = false)]

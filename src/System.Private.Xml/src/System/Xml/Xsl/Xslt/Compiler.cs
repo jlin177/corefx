@@ -14,7 +14,7 @@ namespace System.Xml.Xsl.Xslt
 {
     using TypeFactory = XmlQueryTypeFactory;
 #if DEBUG
-    using XmlILTrace    = System.Xml.Xsl.IlGen.XmlILTrace;
+    using XmlILTrace = System.Xml.Xsl.IlGen.XmlILTrace;
 #endif
 
     internal enum XslVersion
@@ -69,12 +69,6 @@ namespace System.Xml.Xsl.Xslt
         public Compiler(XsltSettings settings, bool debug, string scriptAssemblyPath)
         {
             Debug.Assert(CompilerErrorColl == null, "Compiler cannot be reused");
-
-#if DEBUG
-            if (XmlILTrace.IsEnabled) {
-                tempFiles.KeepFiles = true;
-            }
-#endif
 
             Settings = settings;
             IsDebug = settings.IncludeDebugInformation | debug;

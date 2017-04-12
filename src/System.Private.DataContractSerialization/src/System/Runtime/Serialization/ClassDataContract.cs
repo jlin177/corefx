@@ -2,6 +2,8 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System.Security;
+
 namespace System.Runtime.Serialization
 {
     using System;
@@ -14,84 +16,43 @@ namespace System.Runtime.Serialization
     using System.Threading;
     using System.Xml;
     using DataContractDictionary = System.Collections.Generic.Dictionary<System.Xml.XmlQualifiedName, DataContract>;
-    using System.Security;
     using System.Linq;
 
-#if USE_REFEMIT || NET_NATIVE
+#if USE_REFEMIT || uapaot
     public sealed class ClassDataContract : DataContract
 #else
     internal sealed class ClassDataContract : DataContract
 #endif
     {
-        /// <SecurityNote>
-        /// Review - XmlDictionaryString(s) representing the XML namespaces for class members.
-        ///          statically cached and used from IL generated code. should ideally be Critical.
-        ///          marked SecurityRequiresReview to be callable from transparent IL generated code. 
-        ///          not changed to property to avoid regressing performance; any changes to initialization should be reviewed.
-        /// </SecurityNote>
         public XmlDictionaryString[] ContractNamespaces;
-        /// <SecurityNote>
-        /// Review - XmlDictionaryString(s) representing the XML element names for class members.
-        ///          statically cached and used from IL generated code. should ideally be Critical.
-        ///          marked SecurityRequiresReview to be callable from transparent IL generated code. 
-        ///          not changed to property to avoid regressing performance; any changes to initialization should be reviewed.
-        /// </SecurityNote>
-        public XmlDictionaryString[] MemberNames;
-        /// <SecurityNote>
-        /// Review - XmlDictionaryString(s) representing the XML namespaces for class members.
-        ///          statically cached and used when calling IL generated code. should ideally be Critical.
-        ///          marked SecurityRequiresReview to be callable from transparent code. 
-        ///          not changed to property to avoid regressing performance; any changes to initialization should be reviewed.
-        /// </SecurityNote>
-        public XmlDictionaryString[] MemberNamespaces;
-        [SecurityCritical]
-        /// <SecurityNote>
-        /// Critical - XmlDictionaryString representing the XML namespaces for members of class.
-        ///            statically cached and used from IL generated code.
-        /// </SecurityNote>
-        private XmlDictionaryString[] _childElementNamespaces;
-        [SecurityCritical]
 
-        /// <SecurityNote>
-        /// Critical - holds instance of CriticalHelper which keeps state that is cached statically for serialization. 
-        ///            Static fields are marked SecurityCritical or readonly to prevent
-        ///            data from being modified or leaked to other components in appdomain.
-        /// </SecurityNote>
+        public XmlDictionaryString[] MemberNames;
+
+        public XmlDictionaryString[] MemberNamespaces;
+
+        private XmlDictionaryString[] _childElementNamespaces;
+
         private ClassDataContractCriticalHelper _helper;
 
         private bool _isScriptObject;
 
-#if NET_NATIVE
+#if uapaot
         public ClassDataContract() : base(new ClassDataContractCriticalHelper())
         {
             InitClassDataContract();
         }
 #endif
 
-        /// <SecurityNote>
-        /// Critical - initializes SecurityCritical field 'helper'
-        /// Safe - doesn't leak anything
-        /// </SecurityNote>
-        [SecuritySafeCritical]
         internal ClassDataContract(Type type) : base(new ClassDataContractCriticalHelper(type))
         {
             InitClassDataContract();
         }
-        [SecuritySafeCritical]
 
-        /// <SecurityNote>
-        /// Critical - initializes SecurityCritical field 'helper'
-        /// Safe - doesn't leak anything
-        /// </SecurityNote>
         private ClassDataContract(Type type, XmlDictionaryString ns, string[] memberNames) : base(new ClassDataContractCriticalHelper(type, ns, memberNames))
         {
             InitClassDataContract();
         }
-        [SecurityCritical]
 
-        /// <SecurityNote>
-        /// Critical - initializes SecurityCritical fields; called from all constructors
-        /// </SecurityNote>
         private void InitClassDataContract()
         {
             _helper = base.Helper as ClassDataContractCriticalHelper;
@@ -103,33 +64,16 @@ namespace System.Runtime.Serialization
 
         internal ClassDataContract BaseContract
         {
-            /// <SecurityNote>
-            /// Critical - fetches the critical baseContract property
-            /// Safe - baseContract only needs to be protected for write
-            /// </SecurityNote>
-            [SecuritySafeCritical]
-            get
-            { return _helper.BaseContract; }
+            get { return _helper.BaseContract; }
         }
 
         internal List<DataMember> Members
         {
-            /// <SecurityNote>
-            /// Critical - fetches the critical members property
-            /// Safe - members only needs to be protected for write
-            /// </SecurityNote>
-            [SecuritySafeCritical]
-            get
-            { return _helper.Members; }
+            get { return _helper.Members; }
         }
 
         public XmlDictionaryString[] ChildElementNamespaces
         {
-            /// <SecurityNote>
-            /// Critical - fetches the critical childElementNamespaces property
-            /// Safe - childElementNamespaces only needs to be protected for write; initialized in getter if null
-            /// </SecurityNote>
-            [SecuritySafeCritical]
             get
             {
                 if (_childElementNamespaces == null)
@@ -158,56 +102,36 @@ namespace System.Runtime.Serialization
 
         internal MethodInfo OnSerializing
         {
-            /// <SecurityNote>
-            /// Critical - fetches the critical onSerializing property
-            /// Safe - onSerializing only needs to be protected for write
-            /// </SecurityNote>
-            [SecuritySafeCritical]
             get
             { return _helper.OnSerializing; }
         }
 
         internal MethodInfo OnSerialized
         {
-            /// <SecurityNote>
-            /// Critical - fetches the critical onSerialized property
-            /// Safe - onSerialized only needs to be protected for write
-            /// </SecurityNote>
-            [SecuritySafeCritical]
             get
             { return _helper.OnSerialized; }
         }
 
         internal MethodInfo OnDeserializing
         {
-            /// <SecurityNote>
-            /// Critical - fetches the critical onDeserializing property
-            /// Safe - onDeserializing only needs to be protected for write
-            /// </SecurityNote>
-            [SecuritySafeCritical]
             get
             { return _helper.OnDeserializing; }
         }
 
         internal MethodInfo OnDeserialized
         {
-            /// <SecurityNote>
-            /// Critical - fetches the critical onDeserialized property
-            /// Safe - onDeserialized only needs to be protected for write
-            /// </SecurityNote>
-            [SecuritySafeCritical]
             get
             { return _helper.OnDeserialized; }
         }
 
-#if !NET_NATIVE
+        internal MethodInfo ExtensionDataSetMethod
+        {
+            get { return _helper.ExtensionDataSetMethod; }
+        }
+
+#if !uapaot
         public override DataContractDictionary KnownDataContracts
         {
-            /// <SecurityNote>
-            /// Critical - fetches the critical knownDataContracts property
-            /// Safe - knownDataContracts only needs to be protected for write
-            /// </SecurityNote>
-            [SecuritySafeCritical]
             get
             { return _helper.KnownDataContracts; }
         }
@@ -221,57 +145,45 @@ namespace System.Runtime.Serialization
 
         internal bool IsNonAttributedType
         {
-            /// <SecurityNote>
-            /// Critical - fetches the critical IsNonAttributedType property
-            /// Safe - IsNonAttributedType only needs to be protected for write
-            /// </SecurityNote>
-            [SecuritySafeCritical]
             get
             { return _helper.IsNonAttributedType; }
         }
 
-#if NET_NATIVE
+#if uapaot
         public bool HasDataContract
         {
-            [SecuritySafeCritical]
             get
             { return _helper.HasDataContract; }
             set { _helper.HasDataContract = value; }
         }
-
+#endif
         public bool HasExtensionData
         {
-            [SecuritySafeCritical]
             get
             { return _helper.HasExtensionData; }
             set { _helper.HasExtensionData = value; }
         }
-#endif
 
         internal bool IsKeyValuePairAdapter
         {
-            [SecuritySafeCritical]
             get
             { return _helper.IsKeyValuePairAdapter; }
         }
 
         internal Type[] KeyValuePairGenericArguments
         {
-            [SecuritySafeCritical]
             get
             { return _helper.KeyValuePairGenericArguments; }
         }
 
         internal ConstructorInfo KeyValuePairAdapterConstructorInfo
         {
-            [SecuritySafeCritical]
             get
             { return _helper.KeyValuePairAdapterConstructorInfo; }
         }
 
         internal MethodInfo GetKeyValuePairMethodInfo
         {
-            [SecuritySafeCritical]
             get
             { return _helper.GetKeyValuePairMethodInfo; }
         }
@@ -283,11 +195,6 @@ namespace System.Runtime.Serialization
 
         private ConstructorInfo _nonAttributedTypeConstructor;
 
-        /// <SecurityNote>
-        /// Critical - fetches information about which constructor should be used to initialize non-attributed types that are valid for serialization
-        /// Safe - only needs to be protected for write
-        /// </SecurityNote>
-        [SecuritySafeCritical]
         internal ConstructorInfo GetNonAttributedTypeConstructor()
         {
             if (_nonAttributedTypeConstructor == null)
@@ -335,21 +242,16 @@ namespace System.Runtime.Serialization
             return true;
         }
 
-#if NET_NATIVE
+#if uapaot
         private XmlFormatClassWriterDelegate _xmlFormatWriterDelegate;
         public XmlFormatClassWriterDelegate XmlFormatWriterDelegate
 #else
         internal XmlFormatClassWriterDelegate XmlFormatWriterDelegate
 #endif
         {
-            /// <SecurityNote>
-            /// Critical - fetches the critical xmlFormatWriterDelegate property
-            /// Safe - xmlFormatWriterDelegate only needs to be protected for write; initialized in getter if null
-            /// </SecurityNote>
-            [SecuritySafeCritical]
             get
             {
-#if NET_NATIVE
+#if uapaot
                 if (DataContractSerializer.Option == SerializationOption.CodeGenOnly
                 || (DataContractSerializer.Option == SerializationOption.ReflectionAsBackup && _xmlFormatWriterDelegate != null))
                 {
@@ -372,27 +274,22 @@ namespace System.Runtime.Serialization
             }
             set
             {
-#if NET_NATIVE
+#if uapaot
                 _xmlFormatWriterDelegate = value;
 #endif
             }
         }
 
-#if NET_NATIVE
+#if uapaot
         private XmlFormatClassReaderDelegate _xmlFormatReaderDelegate;
         public XmlFormatClassReaderDelegate XmlFormatReaderDelegate
 #else
         internal XmlFormatClassReaderDelegate XmlFormatReaderDelegate
 #endif
         {
-            /// <SecurityNote>
-            /// Critical - fetches the critical xmlFormatReaderDelegate property
-            /// Safe - xmlFormatReaderDelegate only needs to be protected for write; initialized in getter if null
-            /// </SecurityNote>
-            [SecuritySafeCritical]
             get
             {
-#if NET_NATIVE
+#if uapaot
                 if (DataContractSerializer.Option == SerializationOption.CodeGenOnly
                 || (DataContractSerializer.Option == SerializationOption.ReflectionAsBackup && _xmlFormatReaderDelegate != null))
                 {
@@ -415,7 +312,7 @@ namespace System.Runtime.Serialization
             }
             set
             {
-#if NET_NATIVE
+#if uapaot
                 _xmlFormatReaderDelegate = value;
 #endif
             }
@@ -443,7 +340,7 @@ namespace System.Runtime.Serialization
             {
                 Type declaringType = memberContract.MemberInfo.DeclaringType;
                 DataContract.ThrowInvalidDataContractException(
-                    SR.Format((declaringType.GetTypeInfo().IsEnum ? SR.DupEnumMemberValue : SR.DupMemberName),
+                    SR.Format((declaringType.IsEnum ? SR.DupEnumMemberValue : SR.DupMemberName),
                         existingMemberContract.MemberInfo.Name,
                         memberContract.MemberInfo.Name,
                         DataContract.GetClrTypeFullName(declaringType),
@@ -457,7 +354,7 @@ namespace System.Runtime.Serialization
         internal static XmlDictionaryString GetChildNamespaceToDeclare(DataContract dataContract, Type childType, XmlDictionary dictionary)
         {
             childType = DataContract.UnwrapNullableType(childType);
-            if (!childType.GetTypeInfo().IsEnum && !Globals.TypeOfIXmlSerializable.IsAssignableFrom(childType)
+            if (!childType.IsEnum && !Globals.TypeOfIXmlSerializable.IsAssignableFrom(childType)
                 && DataContract.GetBuiltInDataContract(childType) == null && childType != Globals.TypeOfDBNull)
             {
                 string ns = DataContract.GetStableName(childType).Namespace;
@@ -469,7 +366,7 @@ namespace System.Runtime.Serialization
 
         private static bool IsArraySegment(Type t)
         {
-            return t.GetTypeInfo().IsGenericType && (t.GetGenericTypeDefinition() == typeof(ArraySegment<>));
+            return t.IsGenericType && (t.GetGenericTypeDefinition() == typeof(ArraySegment<>));
         }
 
         /// <SecurityNote>
@@ -479,12 +376,12 @@ namespace System.Runtime.Serialization
         ///            is therefore marked SRR
         /// Safe - does not let caller influence isNonAttributedType calculation; no harm in leaking value
         /// </SecurityNote>
-        static internal bool IsNonAttributedTypeValidForSerialization(Type type)
+        internal static bool IsNonAttributedTypeValidForSerialization(Type type)
         {
             if (type.IsArray)
                 return false;
 
-            if (type.GetTypeInfo().IsEnum)
+            if (type.IsEnum)
                 return false;
 
             if (type.IsGenericParameter)
@@ -496,7 +393,7 @@ namespace System.Runtime.Serialization
             if (type.IsPointer)
                 return false;
 
-            if (type.GetTypeInfo().IsDefined(Globals.TypeOfCollectionDataContractAttribute, false))
+            if (type.IsDefined(Globals.TypeOfCollectionDataContractAttribute, false))
                 return false;
 
             Type[] interfaceTypes = type.GetInterfaces();
@@ -516,15 +413,15 @@ namespace System.Runtime.Serialization
             if (Globals.TypeOfISerializable.IsAssignableFrom(type))
                 return false;
 
-            if (type.GetTypeInfo().IsDefined(Globals.TypeOfDataContractAttribute, false))
+            if (type.IsDefined(Globals.TypeOfDataContractAttribute, false))
                 return false;
-            if (type.GetTypeInfo().IsValueType)
+            if (type.IsValueType)
             {
-                return type.GetTypeInfo().IsVisible;
+                return type.IsVisible;
             }
             else
             {
-                return (type.GetTypeInfo().IsVisible &&
+                return (type.IsVisible &&
                     type.GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public, Array.Empty<Type>()) != null);
             }
         }
@@ -551,9 +448,8 @@ namespace System.Runtime.Serialization
 
         private static string GetGeneralTypeName(Type type)
         {
-            TypeInfo typeInfo = type.GetTypeInfo();
-            return typeInfo.IsGenericType && !typeInfo.IsGenericParameter
-                ? typeInfo.GetGenericTypeDefinition().FullName
+            return type.IsGenericType && !type.IsGenericParameter
+                ? type.GetGenericTypeDefinition().FullName
                 : type.FullName;
         }
 
@@ -597,12 +493,7 @@ namespace System.Runtime.Serialization
 
             return childElementNamespaces;
         }
-        [SecuritySafeCritical]
 
-        /// <SecurityNote>
-        /// Critical - calls critical method on helper
-        /// Safe - doesn't leak anything
-        /// </SecurityNote>
         private void EnsureMethodsImported()
         {
             _helper.EnsureMethodsImported();
@@ -819,12 +710,7 @@ namespace System.Runtime.Serialization
 
             return false;
         }
-        [SecurityCritical]
 
-        /// <SecurityNote>
-        /// Critical - holds all state used for (de)serializing classes.
-        ///            since the data is cached statically, we lock down access to it.
-        /// </SecurityNote>
         private class ClassDataContractCriticalHelper : DataContract.DataContractCriticalHelper
         {
             private static Type[] s_serInfoCtorArgs;
@@ -833,6 +719,7 @@ namespace System.Runtime.Serialization
             private List<DataMember> _members;
             private MethodInfo _onSerializing, _onSerialized;
             private MethodInfo _onDeserializing, _onDeserialized;
+            private MethodInfo _extensionDataSetMethod;
             private DataContractDictionary _knownDataContracts;
             private bool _isISerializable;
             private bool _isKnownTypeAttributeChecked;
@@ -846,9 +733,7 @@ namespace System.Runtime.Serialization
             /// in serialization/deserialization we base the decision whether to Demand SerializationFormatter permission on this value and isNonAttributedType
             /// </SecurityNote>
             private bool _hasDataContract;
-#if NET_NATIVE
             private bool _hasExtensionData;
-#endif
             private bool _isScriptObject;
 
             private XmlDictionaryString[] _childElementNamespaces;
@@ -877,7 +762,7 @@ namespace System.Runtime.Serialization
                     EnsureMethodsImported();
                     return;
                 }
-                Type baseType = type.GetTypeInfo().BaseType;
+                Type baseType = type.BaseType;
                 _isISerializable = (Globals.TypeOfISerializable.IsAssignableFrom(type));
                 SetIsNonAttributedType(type);
                 if (_isISerializable)
@@ -888,7 +773,7 @@ namespace System.Runtime.Serialization
                         baseType = null;
                 }
                 SetKeyValuePairAdapterFlags(type);
-                this.IsValueType = type.GetTypeInfo().IsValueType;
+                this.IsValueType = type.IsValueType;
                 if (baseType != null && baseType != Globals.TypeOfObject && baseType != Globals.TypeOfValueType && baseType != Globals.TypeOfUri)
                 {
                     DataContract baseContract = DataContract.GetDataContract(baseType);
@@ -904,7 +789,15 @@ namespace System.Runtime.Serialization
                     }
                 }
                 else
+                {
                     this.BaseContract = null;
+                }
+
+                _hasExtensionData = (Globals.TypeOfIExtensibleDataObject.IsAssignableFrom(type));
+                if (_hasExtensionData && !HasDataContract && !IsNonAttributedType)
+                {
+                    throw System.Runtime.Serialization.DiagnosticUtility.ExceptionUtility.ThrowHelperError(new InvalidDataContractException(SR.Format(SR.OnlyDataContractTypesCanHaveExtensionData, DataContract.GetClrTypeFullName(type))));
+                }
 
                 if (_isISerializable)
                 {
@@ -1007,7 +900,7 @@ namespace System.Runtime.Serialization
                         isReference = dataContractAttribute.IsReference;
                 }
 
-                if (isReference && type.GetTypeInfo().IsValueType)
+                if (isReference && type.IsValueType)
                 {
                     DataContract.ThrowInvalidDataContractException(
                             SR.Format(SR.ValueTypeCannotHaveIsReference,
@@ -1202,7 +1095,7 @@ namespace System.Runtime.Serialization
             private bool SetIfGetOnlyCollection(DataMember memberContract)
             {
                 //OK to call IsCollection here since the use of surrogated collection types is not supported in get-only scenarios
-                if (CollectionDataContract.IsCollection(memberContract.MemberType, false /*isConstructorRequired*/) && !memberContract.MemberType.GetTypeInfo().IsValueType)
+                if (CollectionDataContract.IsCollection(memberContract.MemberType, false /*isConstructorRequired*/) && !memberContract.MemberType.IsValueType)
                 {
                     memberContract.IsGetOnlyCollection = true;
                     return true;
@@ -1271,13 +1164,6 @@ namespace System.Runtime.Serialization
                 }
             }
 
-            /// <SecurityNote>
-            /// Critical - sets the critical hasDataContract field
-            /// Safe - uses a trusted critical API (DataContract.GetStableName) to calculate the value
-            ///        does not accept the value from the caller
-            /// </SecurityNote>
-            //CSD16748
-            //[SecuritySafeCritical]
             private XmlQualifiedName GetStableNameAndSetHasDataContract(Type type)
             {
                 return DataContract.GetStableName(type, out _hasDataContract);
@@ -1315,7 +1201,13 @@ namespace System.Runtime.Serialization
                                 MethodInfo method = methods[i];
                                 Type prevAttributeType = null;
                                 ParameterInfo[] parameters = method.GetParameters();
-                                //THese attributes are cut from mscorlib.
+                                if (HasExtensionData && IsValidExtensionDataSetMethod(method, parameters))
+                                {
+                                    if (method.Name == Globals.ExtensionDataSetExplicitMethod || !method.IsPublic)
+                                        _extensionDataSetMethod = XmlFormatGeneratorStatics.ExtensionDataSetExplicitMethodInfo;
+                                    else
+                                        _extensionDataSetMethod = method;
+                                }
                                 if (IsValidCallback(method, parameters, Globals.TypeOfOnSerializingAttribute, _onSerializing, ref prevAttributeType))
                                     _onSerializing = method;
                                 if (IsValidCallback(method, parameters, Globals.TypeOfOnSerializedAttribute, _onSerialized, ref prevAttributeType))
@@ -1332,6 +1224,20 @@ namespace System.Runtime.Serialization
                 }
             }
 
+            private bool IsValidExtensionDataSetMethod(MethodInfo method, ParameterInfo[] parameters)
+            {
+                if (method.Name == Globals.ExtensionDataSetExplicitMethod || method.Name == Globals.ExtensionDataSetMethod)
+                {
+                    if (_extensionDataSetMethod != null)
+                        ThrowInvalidDataContractException(SR.Format(SR.DuplicateExtensionDataSetMethod, method, _extensionDataSetMethod, DataContract.GetClrTypeFullName(method.DeclaringType)));
+                    if (method.ReturnType != Globals.TypeOfVoid)
+                        DataContract.ThrowInvalidDataContractException(SR.Format(SR.ExtensionDataSetMustReturnVoid, DataContract.GetClrTypeFullName(method.DeclaringType), method), method.DeclaringType);
+                    if (parameters == null || parameters.Length != 1 || parameters[0].ParameterType != Globals.TypeOfExtensionDataObject)
+                        DataContract.ThrowInvalidDataContractException(SR.Format(SR.ExtensionDataSetParameterInvalid, DataContract.GetClrTypeFullName(method.DeclaringType), method, Globals.TypeOfExtensionDataObject), method.DeclaringType);
+                    return true;
+                }
+                return false;
+            }
 
             private static bool IsValidCallback(MethodInfo method, ParameterInfo[] parameters, Type attributeType, MethodInfo currentCallback, ref Type prevAttributeType)
             {
@@ -1409,10 +1315,17 @@ namespace System.Runtime.Serialization
                 }
             }
 
+            internal MethodInfo ExtensionDataSetMethod
+            {
+                get
+                {
+                    EnsureMethodsImported();
+                    return _extensionDataSetMethod;
+                }
+            }
 
             internal override DataContractDictionary KnownDataContracts
             {
-                [SecurityCritical]
                 get
                 {
                     if (_knownDataContracts != null)
@@ -1434,7 +1347,7 @@ namespace System.Runtime.Serialization
                     }
                     return _knownDataContracts;
                 }
-                [SecurityCritical]
+
                 set
                 { _knownDataContracts = value; }
             }
@@ -1448,17 +1361,16 @@ namespace System.Runtime.Serialization
             internal bool HasDataContract
             {
                 get { return _hasDataContract; }
-#if NET_NATIVE
+#if uapaot
                 set { _hasDataContract = value; }
 #endif
             }
-#if NET_NATIVE
+
             internal bool HasExtensionData
             {
                 get { return _hasExtensionData; }
                 set { _hasExtensionData = value; }
             }
-#endif
 
             internal bool IsNonAttributedType
             {
@@ -1467,7 +1379,7 @@ namespace System.Runtime.Serialization
 
             private void SetKeyValuePairAdapterFlags(Type type)
             {
-                if (type.GetTypeInfo().IsGenericType && type.GetGenericTypeDefinition() == Globals.TypeOfKeyValuePairAdapter)
+                if (type.IsGenericType && type.GetGenericTypeDefinition() == Globals.TypeOfKeyValuePairAdapter)
                 {
                     _isKeyValuePairAdapter = true;
                     _keyValuePairGenericArguments = type.GetGenericArguments();
@@ -1525,7 +1437,7 @@ namespace System.Runtime.Serialization
 
                 Type type = UnderlyingType;
 
-                if (type.GetTypeInfo().IsValueType)
+                if (type.IsValueType)
                     return null;
 
                 ConstructorInfo ctor = type.GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public, Array.Empty<Type>());
@@ -1578,7 +1490,6 @@ namespace System.Runtime.Serialization
 
             internal class DataMemberConflictComparer : IComparer<Member>
             {
-                [SecuritySafeCritical]
                 public int Compare(Member x, Member y)
                 {
                     int nsCompare = String.CompareOrdinal(x.ns, y.ns);
@@ -1626,7 +1537,6 @@ namespace System.Runtime.Serialization
             }
         }
 
-
         internal class DataMemberComparer : IComparer<DataMember>
         {
             public int Compare(DataMember x, DataMember y)
@@ -1641,7 +1551,7 @@ namespace System.Runtime.Serialization
             internal static DataMemberComparer Singleton = new DataMemberComparer();
         }
 
-#if !NET_NATIVE
+#if !uapaot
         /// <summary>
         ///  Get object type for Xml/JsonFormmatReaderGenerator
         /// </summary>
@@ -1650,7 +1560,7 @@ namespace System.Runtime.Serialization
             get
             {
                 Type type = UnderlyingType;
-                if (type.GetTypeInfo().IsValueType && !IsNonAttributedType)
+                if (type.IsValueType && !IsNonAttributedType)
                 {
                     type = Globals.TypeOfValueType;
                 }

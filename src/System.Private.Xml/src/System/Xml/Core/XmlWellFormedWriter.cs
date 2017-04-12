@@ -1579,17 +1579,6 @@ namespace System.Xml
             }
         }
 
-        //
-        // Internal methods
-        //
-        internal XmlWriter InnerWriter
-        {
-            get
-            {
-                return _writer;
-            }
-        }
-
         internal XmlRawWriter RawWriter
         {
             get
@@ -1920,7 +1909,7 @@ namespace System.Xml
             }
         }
 
-        static private XmlException DupAttrException(string prefix, string localName)
+        private static XmlException DupAttrException(string prefix, string localName)
         {
             StringBuilder sb = new StringBuilder();
             if (prefix.Length > 0)

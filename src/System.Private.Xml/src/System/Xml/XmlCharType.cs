@@ -9,7 +9,7 @@ using System.Runtime.CompilerServices;
 
 namespace System.Xml
 {
-    unsafe internal struct XmlCharType
+    internal unsafe struct XmlCharType
     {
         // Surrogate constants
         internal const int SurHighStart = 0xd800;    // 1101 10xx
@@ -1083,12 +1083,6 @@ namespace System.Xml
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool IsStartNameSingleChar(char ch)
-        {
-            return IsStartNCNameSingleChar(ch) || ch == ':';
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool IsCharData(char ch)
         {
             return (_charProperties[ch >> 8][ch & 0xff] & fCharData) != 0;
@@ -1148,13 +1142,6 @@ namespace System.Xml
         public bool IsNameCharXml4e(char ch)
         {
             return IsNCNameCharXml4e(ch) || ch == ':';
-        }
-
-        // This method uses the XML 4th edition name character ranges
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool IsStartNameCharXml4e(char ch)
-        {
-            return IsStartNCNameCharXml4e(ch) || ch == ':';
         }
 
         // Digit methods
@@ -1242,7 +1229,7 @@ namespace System.Xml
             return -1;
         }
 
-        static internal bool IsOnlyDigits(string str, int startPos, int len)
+        internal static bool IsOnlyDigits(string str, int startPos, int len)
         {
             Debug.Assert(str != null);
             Debug.Assert(startPos + len <= str.Length);
@@ -1251,22 +1238,6 @@ namespace System.Xml
             for (int i = startPos; i < startPos + len; i++)
             {
                 if (!IsDigit(str[i]))
-                {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        static internal bool IsOnlyDigits(char[] chars, int startPos, int len)
-        {
-            Debug.Assert(chars != null);
-            Debug.Assert(startPos + len <= chars.Length);
-            Debug.Assert(startPos <= chars.Length);
-
-            for (int i = startPos; i < startPos + len; i++)
-            {
-                if (!IsDigit(chars[i]))
                 {
                     return false;
                 }
@@ -1293,8 +1264,7 @@ namespace System.Xml
         private static bool InRange(int value, int start, int end)
         {
             Debug.Assert(start <= end);
-            return (uint)(value - start) <= (uint)(end - start);
+            return unchecked((uint)(value - start) <= (uint)(end - start));
         }
     }
 }
-

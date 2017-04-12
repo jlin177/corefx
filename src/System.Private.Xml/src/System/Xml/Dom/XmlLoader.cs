@@ -960,8 +960,7 @@ namespace System.Xml
                     XmlTextReaderImpl.DtdParserProxy proxy = new XmlTextReaderImpl.DtdParserProxy(tr);
 
                     IDtdInfo dtdInfo = dtdParser.ParseFreeFloatingDtd(context.BaseURI, context.DocTypeName, context.PublicId, context.SystemId, context.InternalSubset, proxy);
-
-                    // TODO: Change all of XmlDocument to IDtdInfo interfaces
+                    
                     dtdNode.DtdSchemaInfo = dtdInfo as SchemaInfo;
                     tr.SetDtdInfo(dtdInfo);
                 }
@@ -1001,7 +1000,7 @@ namespace System.Xml
             }
         }
 
-        static internal Exception UnexpectedNodeType(XmlNodeType nodetype)
+        internal static Exception UnexpectedNodeType(XmlNodeType nodetype)
         {
             return new InvalidOperationException(string.Format(CultureInfo.InvariantCulture, SR.Xml_UnexpectedNodeType, nodetype.ToString()));
         }

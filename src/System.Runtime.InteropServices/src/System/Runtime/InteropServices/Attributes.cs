@@ -48,6 +48,19 @@ namespace System.Runtime.InteropServices
     {
     }
 
+    [AttributeUsage(AttributeTargets.Interface, Inherited = false)]
+    public sealed class ComEventInterfaceAttribute : Attribute
+    {
+        public ComEventInterfaceAttribute(Type SourceInterface, Type EventProvider)
+        {
+            this.SourceInterface = SourceInterface;
+            this.EventProvider = EventProvider;
+        }
+
+        public Type SourceInterface { get; }
+        public Type EventProvider { get; }
+    }
+
     [AttributeUsage(AttributeTargets.Method, Inherited = false)]
     public sealed class ComRegisterFunctionAttribute : Attribute
     {
@@ -82,16 +95,6 @@ namespace System.Runtime.InteropServices
         SystemDefinedImpl = 0,
     }
 
-    [AttributeUsage(AttributeTargets.Method, Inherited = false)]
-    public sealed class LCIDConversionAttribute : Attribute
-    {
-        public LCIDConversionAttribute(int lcid)
-        {
-            Value = lcid;
-        }
-        public int Value { get; }
-    }
-
     [AttributeUsage(AttributeTargets.Method, Inherited = false, AllowMultiple = false)]
     public sealed class ManagedToNativeComInteropStubAttribute : Attribute
     {
@@ -116,16 +119,6 @@ namespace System.Runtime.InteropServices
 
         public int MajorVersion { get; }
         public int MinorVersion { get; }
-    }
-
-    [AttributeUsage(AttributeTargets.Class, Inherited = false)]
-    public sealed class ProgIdAttribute : Attribute
-    {
-        public ProgIdAttribute(string progId)
-        {
-            Value = progId;
-        }
-        public string Value { get; }
     }
 
     [Obsolete("This attribute has been deprecated.  Application Domains no longer respect Activation Context boundaries in IDispatch calls.", false)]

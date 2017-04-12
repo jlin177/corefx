@@ -6,6 +6,9 @@ using System.ComponentModel;
 
 namespace System.Security.Cryptography
 {
+    //
+    // If you change this file, make the corresponding changes to all of the SHA*CryptoServiceProvider.cs files.
+    //
     [EditorBrowsable(EditorBrowsableState.Never)]
     public sealed class SHA1CryptoServiceProvider : SHA1
     {
@@ -15,6 +18,7 @@ namespace System.Security.Cryptography
         public SHA1CryptoServiceProvider()
         {
             _incrementalHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA1);
+            HashSizeValue = HashSizeBits;
         }
 
         public override void Initialize()
@@ -33,16 +37,15 @@ namespace System.Security.Cryptography
             return _incrementalHash.GetHashAndReset();
         }
 
-        // The Hash property is not overridden since the correct value exists on base.
-        public override int HashSize => HashSizeBits;
+        // The Hash and HashSize properties are not overridden since the correct values are returned from base.
 
         protected sealed override void Dispose(bool disposing)
         {
             if (disposing)
             {
                 _incrementalHash.Dispose();
-                base.Dispose(disposing);
             }
+            base.Dispose(disposing);
         }
     }
 }

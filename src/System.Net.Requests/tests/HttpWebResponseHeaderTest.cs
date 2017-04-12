@@ -2,9 +2,11 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System.IO;
 using System.Net.Http;
 using System.Net.Test.Common;
 using System.Threading.Tasks;
+using System.Runtime.Serialization.Formatters.Binary;
 
 using Xunit;
 using Xunit.Abstractions;
@@ -73,6 +75,7 @@ namespace System.Net.Tests
             });
         }
 
+        [SkipOnTargetFramework(TargetFrameworkMonikers.NetFramework, "dotnet/corefx #17842")] // Difference in behavior
         [OuterLoop]
         [Fact]
         public async Task HttpWebResponse_Close_Success()
@@ -100,5 +103,29 @@ namespace System.Net.Tests
             });
         }
 
+        [Fact]
+        [SkipOnTargetFramework(TargetFrameworkMonikers.NetFramework, "dotnet/corefx #17842")] // Hangs in Desktop
+        public async Task HttpWebResponse_Serialize_Fails()
+        {
+            await LoopbackServer.CreateServerAsync(async (server, url) =>
+            {
+                HttpWebRequest request = WebRequest.CreateHttp(url);
+                request.Method = HttpMethod.Get.Method;
+                Task<WebResponse> getResponse = request.GetResponseAsync();
+                await LoopbackServer.ReadRequestAndSendResponseAsync(server, "HTTP/1.1 200 OK\r\n");
+
+                using (WebResponse response = await getResponse)
+                {
+                    HttpWebResponse httpResponse = (HttpWebResponse)response;
+                    using (MemoryStream fs = new MemoryStream())
+                    {
+                        BinaryFormatter formatter = new BinaryFormatter();
+                        HttpWebResponse hwr = (HttpWebResponse)response;
+
+                        Assert.Throws<PlatformNotSupportedException>(() => formatter.Serialize(fs, hwr));
+                    }
+                }
+            });
+        } 
     }
 }

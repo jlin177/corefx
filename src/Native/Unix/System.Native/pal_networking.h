@@ -162,7 +162,7 @@ enum SocketOptionName : int32_t
     PAL_SO_IP_MULTICAST_LOOP = 11,
     PAL_SO_IP_ADD_MEMBERSHIP = 12,
     PAL_SO_IP_DROP_MEMBERSHIP = 13,
-    // PAL_SO_IP_DONTFRAGMENT = 14,
+    PAL_SO_IP_DONTFRAGMENT = 14,
     PAL_SO_IP_ADD_SOURCE_MEMBERSHIP = 15,
     PAL_SO_IP_DROP_SOURCE_MEMBERSHIP = 16,
     PAL_SO_IP_BLOCK_SOURCE = 17,
@@ -417,3 +417,5 @@ extern "C" int32_t SystemNative_PlatformSupportsDualModeIPv4PacketInfo();
 extern "C" char* SystemNative_GetPeerUserName(intptr_t socket);
 
 extern "C" void SystemNative_GetDomainSocketSizes(int32_t* pathOffset, int32_t* pathSize, int32_t* addressSize);
+
+extern "C" Error SystemNative_SendFile(intptr_t out_fd, intptr_t in_fd, int64_t offset, int64_t count, int64_t* sent);

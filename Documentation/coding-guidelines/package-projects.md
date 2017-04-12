@@ -10,7 +10,7 @@ In either case the file name of the `.pkgproj` is just {assemblyName}.pkgproj an
 
 ## Package samples
 ### Simple portable library
-This is the simplest case.  The package project need only reference the single project that implements the portable libary.
+This is the simplest case.  The package project need only reference the single project that implements the portable library.
 
 Sample `System.Text.Encodings.Web.pkgproj`
 ```
@@ -89,7 +89,7 @@ Sample System.Net.Security.pkgproj
 </Project>
 ```
 
-Sample \ref .builds file defining a constant used to filter API that were added on top of the netstandard1.7 ones and are available only in netcoreapp1.1: 
+Sample \ref .builds file defining a constant used to filter API that were added on top of the netstandard1.7 ones and are available only in netcoreapp1.1:
 
 ```
 <?xml version="1.0" encoding="utf-8"?>
@@ -147,7 +147,7 @@ Tests can be similarly filtered grouping the compilation directives under:
 (from `\tests\FunctionalTests\System.Net.Security.Tests.csproj`)
 
 ### Platform-specific library
-These packages need to provide a different platform specific implementation on each platform.  They do this by splitting the implementations into seperate packages and associating those platform specific packages with the primary reference package.  Each platform specific package sets `PackageTargetRuntime` to the specific platform RID that it applies.
+These packages need to provide a different platform specific implementation on each platform.  They do this by splitting the implementations into separate packages and associating those platform specific packages with the primary reference package.  Each platform specific package sets `PackageTargetRuntime` to the specific platform RID that it applies.
 
 Sample `System.IO.FileSystem.pkgproj`
 ```
@@ -222,7 +222,7 @@ Sample `System.IO.FileSystem.pkgproj`
 ```
 
 ## Asset selection
-The makeup of a package folder is primarily a grouping of project references to the projects that compose that package.  Settings within each referenced project determines where that asset will be placed in the package.  For example, reference assembly projects will be placed under the `ref/{targetMoniker}` folder in the package and implementations will be under either `lib/{targetMoniker}` or `runtimes/{rid}/lib/{targetMoniker}`.  Whenever NuGet evaulates a package in the context of a referencing project it will choose the best compile time asset (preferring `ref`, then falling back to `lib`) and runtime asset (preffering `runtimes/{rid}/lib` and falling back to `lib`) for every package that is referenced.  For more information see http://docs.nuget.org/.
+The makeup of a package folder is primarily a grouping of project references to the projects that compose that package.  Settings within each referenced project determines where that asset will be placed in the package.  For example, reference assembly projects will be placed under the `ref/{targetMoniker}` folder in the package and implementations will be under either `lib/{targetMoniker}` or `runtimes/{rid}/lib/{targetMoniker}`.  Whenever NuGet evaluates a package in the context of a referencing project it will choose the best compile time asset (preferring `ref`, then falling back to `lib`) and runtime asset (preferring `runtimes/{rid}/lib` and falling back to `lib`) for every package that is referenced.  For more information see http://docs.nuget.org/.
 
 Asset projects (`.csproj`, `.vbproj`, or `.depproj`) can control their `{targetMoniker}` using the `PackageTargetFramework` property in the project file.  Similarly `{rid}` is controlled using the `PackageTargetRuntime` property.  In the corefx repo we automatically select default values for these properties based on the [Build pivots](#build-pivots).  These can be overridden in the project reference using metadata of the same name, but this is rarely needed.
 
@@ -237,11 +237,11 @@ The primary thing that the library author needs to do in order to ensure the cor
 ### Which version of dotnet/netstandard should I select?
 TL;DR - choose the lowest version that doesn't result in build errors for both the library projects and package project.
 
-NETStandard/DotNet are *open* ended portable identifiers.  They allow a package to place an asset in a folder and that asset can be reused on any framework that supports that version of NETStandard/DotNet.  This is in contrast to the previous *closed* set portable-a+b+c identifiers which only applied to the frameworks listed in the set.  For more information see [.NET Platform Standard](https://github.com/dotnet/corefx/blob/master/Documentation/architecture/net-platform-standard.md).
+NETStandard/DotNet are *open* ended portable identifiers.  They allow a package to place an asset in a folder and that asset can be reused on any framework that supports that version of NETStandard/DotNet.  This is in contrast to the previous *closed* set portable-a+b+c identifiers which only applied to the frameworks listed in the set.  For more information see [.NET  Standard](https://github.com/dotnet/standard/blob/master/docs/faq.md).
 
 Libraries should select a version of DotNet/NETStandard that supports the most frameworks.  This means the library should choose the lowest version that provides all the API needed to implement their functionality.  Eventually this will be the same moniker used for package resolution in the library project, AKA in `frameworks` section for the libraries project.json.
 
-In CoreFx we don't always use the package resolution for dependencies, sometimes we must use project references.  Additionally we aren't building all projects with the NETStandard/DotNet identifier.  This issue is tracked with https://github.com/dotnet/corefx/issues/2427.  As a result we calculate the version as an added safegaurd based on seeds.  These seeds are listed in [Generations.json](https://github.com/dotnet/buildtools/blob/master/src/Microsoft.DotNet.Build.Tasks.Packaging/src/PackageFiles/Generations.json) and rarely change.  They are a record of what libraries shipped in-box and are unchangeable for a particular framework supporting a generation.  Occasionally an API change can be made even to these in-box libraries and shipped out-of-band, for example by adding a new type and putting that type in a hybrid facade.  This is the only case when it is permitted to update Generations.json. 
+In CoreFx we don't always use the package resolution for dependencies, sometimes we must use project references.  Additionally we aren't building all projects with the NETStandard/DotNet identifier.  This issue is tracked with https://github.com/dotnet/corefx/issues/2427.  As a result we calculate the version as an added safegaurd based on seeds.  These seeds are listed in [Generations.json](https://github.com/dotnet/buildtools/blob/master/src/Microsoft.DotNet.Build.Tasks.Packaging/src/PackageFiles/Generations.json) and rarely change.  They are a record of what libraries shipped in-box and are unchangeable for a particular framework supporting a generation.  Occasionally an API change can be made even to these in-box libraries and shipped out-of-band, for example by adding a new type and putting that type in a hybrid facade.  This is the only case when it is permitted to update Generations.json.
 
 In addition to the minimum API version required by implementation, reference assemblies should only claim the NETStandard/DotNet version of the minimum implementation assembly.  Just because a reference assembly only depends on API in NETStandard1.0, if its implementations only apply to frameworks supporting NETStandard1.4, it should use NETStandard1.4.
 
@@ -261,7 +261,7 @@ Part of package build is to ensure that a package is applicable on all platforms
     </ProjectReference>
     ```
 
-2. Through SupportedFramework items with Version metdata.
+2. Through SupportedFramework items with Version metadata.
     ```
     <!-- no version indicates latest is supported -->
     <SupportedFramework Include="net46;netcore50;netcoreapp1.0" />
@@ -271,7 +271,7 @@ Part of package build is to ensure that a package is applicable on all platforms
     </SupportedFramework>
     ```
 
-###Inbox assets
+### Inbox assets
 Some libraries are supported inbox on particular frameworks.  For these frameworks the package should not present any assets for (ref or lib) for that framework, but instead permit installation and provide no assets.  We do this in the package by using placeholders ref and lib folders for that framework.  In the package project one can use `InboxOnTargetFramework` items.  The following is an example from the System.Linq.Expressions package.
 ```
 <InboxOnTargetFramework Include="net45" />
@@ -292,8 +292,8 @@ If the library is also a "classic" reference assembly, not referenced by default
 
 Package validation will catch a case where we know a library is supported inbox but a package is using an asset from the package.  This data is driven by framework lists from previously-shipped targeting packs.  The error will appear as: *Framework net45 should support Microsoft.CSharp inbox but {explanation of problem}.  You may need to add <InboxOnTargetFramework Include="net45" /> to your project.*
 
-###External assets
-Runtime specific packages are used to break apart implementations into seperate packages and enable "pay-for-play".  For example: don't download the Windows implementation if we're only building/deploying for linux.  In most cases we can completely seperate implementations into seperate packages such that they easily translate.  For example:
+### External assets
+Runtime specific packages are used to break apart implementations into separate packages and enable "pay-for-play".  For example: don't download the Windows implementation if we're only building/deploying for linux.  In most cases we can completely separate implementations into separate packages such that they easily translate.  For example:
 ```
 runtimes/win/lib/dotnet5.4/System.Banana.dll
 runtimes/unix/lib/dotnet5.4/System.Banana.dll
@@ -305,7 +305,7 @@ Consider the following:
 runtimes/win/lib/dotnet5.4/System.Banana.dll
 runtimes/win/lib/net46/System.Banana.dll
 ```
-Suppose we wanted to split the desktop (`net46`) implementation into a seperate package than the portable implementation.  Doing so would cause both the `dotnet5.4` asset and the `net46` asset to be applicable and result in a bin-clash.  This is because in a single package the `net46` asset is preferred over the `dotnet5.4` asset, but in seperate packages both are in view.  The packaging validation will catch this problem and display an error such as
+Suppose we wanted to split the desktop (`net46`) implementation into a separate package than the portable implementation.  Doing so would cause both the `dotnet5.4` asset and the `net46` asset to be applicable and result in a bin-clash.  This is because in a single package the `net46` asset is preferred over the `dotnet5.4` asset, but in separate packages both are in view.  The packaging validation will catch this problem and display an error such as
 
 *System.Banana includes both package1/runtimes/win/lib/net46/System.Banana.dll and package2/runtimes/win/lib/dotnet5.4/System.Banana.dll an on net46 which have the same name and will clash when both packages are used.*
 
@@ -315,7 +315,7 @@ The fix for the error is to put a placeholder in the package that contains the a
 <ExternalOnTargetFramework Include="net46" />
 ```
 
-###Not supported
+### Not supported
 In rare cases a particular library might represent itself as targeting a specific portable moniker (eg: `dotnet5.4`) but it cannot be supported on a particular target framework that is included in that portable moniker for other reasons.  One example of this is System.Diagnostics.Process.  The surface area of this API is portable to dotnet5.4 and could technically run in UWP based on its managed dependencies.  The native API, however, is not supported in app container.  To prevent this package and packages which depend on from installing in UWP projects, only to fail at runtime, we can block the package from being installed.
 
 To do this we create a placeholder in the lib folder with the following syntax.  The resulting combination will be an applicable ref asset with no applicable lib and NuGet's compat check will fail.

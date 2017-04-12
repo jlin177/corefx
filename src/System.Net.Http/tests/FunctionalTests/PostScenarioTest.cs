@@ -24,16 +24,16 @@ namespace System.Net.Http.Functional.Tests
         private const string ExpectedContent = "Test contest";
         private const string UserName = "user1";
         private const string Password = "password1";
-        private readonly static Uri BasicAuthServerUri =
+        private static readonly Uri BasicAuthServerUri =
             Configuration.Http.BasicAuthUriForCreds(false, UserName, Password);
-        private readonly static Uri SecureBasicAuthServerUri =
+        private static readonly Uri SecureBasicAuthServerUri =
             Configuration.Http.BasicAuthUriForCreds(true, UserName, Password);
 
         private readonly ITestOutputHelper _output;
 
-        public readonly static object[][] EchoServers = Configuration.Http.EchoServers;
+        public static readonly object[][] EchoServers = Configuration.Http.EchoServers;
 
-        public readonly static object[][] BasicAuthEchoServers =
+        public static readonly object[][] BasicAuthEchoServers =
             new object[][]
                 {
                     new object[] { BasicAuthServerUri },
@@ -111,6 +111,7 @@ namespace System.Net.Http.Functional.Tests
 
         [OuterLoop] // TODO: Issue #11345
         [Theory, MemberData(nameof(EchoServers))]
+        [SkipOnTargetFramework(TargetFrameworkMonikers.NetFramework, "dotnet/corefx #17621")] // show a debug assert window as it is failing in an Assert.
         public async Task PostUsingNoSpecifiedSemantics_UsesChunkedSemantics(Uri serverUri)
         {
             await PostHelper(serverUri, ExpectedContent, new StringContent(ExpectedContent),
@@ -137,6 +138,7 @@ namespace System.Net.Http.Functional.Tests
 
         [OuterLoop] // TODO: Issue #11345
         [Theory, MemberData(nameof(BasicAuthEchoServers))]
+        [SkipOnTargetFramework(TargetFrameworkMonikers.NetFramework, "dotnet/corefx #17621")] // show a debug assert window as it is failing in an Assert.
         public async Task PostRewindableContentUsingAuth_NoPreAuthenticate_Success(Uri serverUri)
         {
             HttpContent content = CustomContent.Create(ExpectedContent, true);
@@ -146,6 +148,7 @@ namespace System.Net.Http.Functional.Tests
 
         [OuterLoop] // TODO: Issue #11345
         [Theory, MemberData(nameof(BasicAuthEchoServers))]
+        [SkipOnTargetFramework(TargetFrameworkMonikers.NetFramework, "dotnet/corefx #17621")] // show a debug assert window as it is failing in an Assert.
         public async Task PostNonRewindableContentUsingAuth_NoPreAuthenticate_ThrowsInvalidOperationException(Uri serverUri)
         {
             HttpContent content = CustomContent.Create(ExpectedContent, false);
@@ -156,6 +159,7 @@ namespace System.Net.Http.Functional.Tests
 
         [OuterLoop] // TODO: Issue #11345
         [Theory, MemberData(nameof(BasicAuthEchoServers))]
+        [ActiveIssue(9228, TestPlatforms.Windows)]
         public async Task PostNonRewindableContentUsingAuth_PreAuthenticate_Success(Uri serverUri)
         {
             HttpContent content = CustomContent.Create(ExpectedContent, false);

@@ -15,7 +15,7 @@ using Microsoft.SqlServer.Server;
 
 namespace System.Data.SqlClient
 {
-    public sealed class SqlCommand : DbCommand
+    public sealed class SqlCommand : DbCommand, ICloneable
     {
         private string _commandText;
         private CommandType _commandType;
@@ -23,7 +23,7 @@ namespace System.Data.SqlClient
         private UpdateRowSource _updatedRowSource = UpdateRowSource.Both;
         private bool _designTimeInvisible;
 
-        private readonly static DiagnosticListener _diagnosticListener = new DiagnosticListener(SqlClientDiagnosticListenerExtensions.DiagnosticListenerName);
+        private static readonly DiagnosticListener _diagnosticListener = new DiagnosticListener(SqlClientDiagnosticListenerExtensions.DiagnosticListenerName);
         private bool _parentOperationStarted = false;
 
         // Prepare
@@ -67,7 +67,7 @@ namespace System.Data.SqlClient
         private TaskCompletionSource<object> _reconnectionCompletionSource = null;
 
 #if DEBUG
-        static internal int DebugForceAsyncWriteDelay { get; set; }
+        internal static int DebugForceAsyncWriteDelay { get; set; }
 #endif
         internal bool InPrepare
         {
@@ -221,6 +221,23 @@ namespace System.Data.SqlClient
             CommandText = cmdText;
             Connection = connection;
             Transaction = transaction;
+        }
+
+        private SqlCommand(SqlCommand from) : this()
+        {
+            CommandText = from.CommandText;
+            CommandTimeout = from.CommandTimeout;
+            CommandType = from.CommandType;
+            Connection = from.Connection;
+            DesignTimeVisible = from.DesignTimeVisible;
+            Transaction = from.Transaction;
+            UpdatedRowSource = from.UpdatedRowSource;
+
+            SqlParameterCollection parameters = Parameters;
+            foreach (object parameter in from.Parameters)
+            {
+                parameters.Add((parameter is ICloneable) ? (parameter as ICloneable).Clone() : parameter);
+            }
         }
 
         new public SqlConnection Connection
@@ -1592,7 +1609,7 @@ namespace System.Data.SqlClient
 
         new public Task<SqlDataReader> ExecuteReaderAsync(CommandBehavior behavior, CancellationToken cancellationToken)
         {
-            Guid operationId;
+            Guid operationId = default(Guid);
             if (!_parentOperationStarted)
                 operationId = _diagnosticListener.WriteCommandBefore(this);
 
@@ -1792,7 +1809,7 @@ namespace System.Data.SqlClient
         }
 
         // Yukon- column ordinals (this array indexed by ProcParamsColIndex
-        static readonly internal string[] PreKatmaiProcParamsNames = new string[] {
+        internal static readonly string[] PreKatmaiProcParamsNames = new string[] {
             "PARAMETER_NAME",           // ParameterName,
             "PARAMETER_TYPE",           // ParameterType,
             "DATA_TYPE",                // DataType
@@ -1811,7 +1828,7 @@ namespace System.Data.SqlClient
         };
 
         // Katmai+ column ordinals (this array indexed by ProcParamsColIndex
-        static readonly internal string[] KatmaiProcParamsNames = new string[] {
+        internal static readonly string[] KatmaiProcParamsNames = new string[] {
             "PARAMETER_NAME",           // ParameterName,
             "PARAMETER_TYPE",           // ParameterType,
             null,                       // DataType, removed from Katmai+
@@ -2422,6 +2439,7 @@ namespace System.Data.SqlClient
             }
 
             TdsParserStateObject stateObj = parser.GetSession(this);
+            stateObj.StartSession(this);
 
             _stateObj = stateObj;
 
@@ -3230,6 +3248,10 @@ namespace System.Data.SqlClient
             {
             }
         }
+
+        object ICloneable.Clone() => Clone();
+
+        public SqlCommand Clone() => new SqlCommand(this);
     }
 }
 

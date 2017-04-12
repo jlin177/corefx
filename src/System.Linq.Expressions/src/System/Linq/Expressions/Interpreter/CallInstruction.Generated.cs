@@ -24,13 +24,13 @@ namespace System.Linq.Expressions.Interpreter
         /// Fast creation works if we have a known primitive types for the entire
         /// method signature.  If we have any non-primitive types then FastCreate
         /// falls back to SlowCreate which works for all types.
-        /// 
+        ///
         /// Fast creation is fast because it avoids using reflection (MakeGenericType
         /// and Activator.CreateInstance) to create the types.  It does this through
         /// calling a series of generic methods picking up each strong type of the
-        /// signature along the way.  When it runs out of types it news up the 
+        /// signature along the way.  When it runs out of types it news up the
         /// appropriate CallInstruction with the strong-types that have been built up.
-        /// 
+        ///
         /// One relaxation is that for return types which are non-primitive types
         /// we can fall back to object due to relaxed delegates.
         /// </summary>
@@ -42,12 +42,12 @@ namespace System.Linq.Expressions.Interpreter
                 return new ActionCallInstruction(target);
             }
 
-            if (t.GetTypeInfo().IsEnum) return SlowCreate(target, pi);
-            switch (TypeExtensions.GetTypeCode(t))
+            if (t.IsEnum) return SlowCreate(target, pi);
+            switch (t.GetTypeCode())
             {
                 case TypeCode.Object:
                     {
-                        if (t != typeof(object) && (IndexIsNotReturnType(0, target, pi) || t.GetTypeInfo().IsValueType))
+                        if (t != typeof(object) && (IndexIsNotReturnType(0, target, pi) || t.IsValueType))
                         {
                             // if we're on the return type relaxed delegates makes it ok to use object
                             goto default;
@@ -85,12 +85,12 @@ namespace System.Linq.Expressions.Interpreter
                 return new FuncCallInstruction<T0>(target);
             }
 
-            if (t.GetTypeInfo().IsEnum) return SlowCreate(target, pi);
-            switch (TypeExtensions.GetTypeCode(t))
+            if (t.IsEnum) return SlowCreate(target, pi);
+            switch (t.GetTypeCode())
             {
                 case TypeCode.Object:
                     {
-                        if (t != typeof(object) && (IndexIsNotReturnType(1, target, pi) || t.GetTypeInfo().IsValueType))
+                        if (t != typeof(object) && (IndexIsNotReturnType(1, target, pi) || t.IsValueType))
                         {
                             // if we're on the return type relaxed delegates makes it ok to use object
                             goto default;
@@ -128,13 +128,13 @@ namespace System.Linq.Expressions.Interpreter
                 return new FuncCallInstruction<T0, T1>(target);
             }
 
-            if (t.GetTypeInfo().IsEnum) return SlowCreate(target, pi);
-            switch (TypeExtensions.GetTypeCode(t))
+            if (t.IsEnum) return SlowCreate(target, pi);
+            switch (t.GetTypeCode())
             {
                 case TypeCode.Object:
                     {
                         Debug.Assert(pi.Length == 2);
-                        if (t.GetTypeInfo().IsValueType) goto default;
+                        if (t.IsValueType) goto default;
 
                         return new FuncCallInstruction<T0, T1, Object>(target);
                     }

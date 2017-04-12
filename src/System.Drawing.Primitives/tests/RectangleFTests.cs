@@ -2,7 +2,6 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
-using System.Collections.Generic;
 using System.Globalization;
 
 using Xunit;
@@ -118,6 +117,7 @@ namespace System.Drawing.PrimitivesTest
             Assert.True(rect1 != rect2);
             Assert.False(rect1 == rect2);
             Assert.False(rect1.Equals(rect2));
+            Assert.False(rect1.Equals((object)rect2));
         }
 
         [Fact]
@@ -126,7 +126,14 @@ namespace System.Drawing.PrimitivesTest
             var rectangle = new RectangleF(0, 0, 0, 0);
             Assert.False(rectangle.Equals(null));
             Assert.False(rectangle.Equals(0));
-            Assert.False(rectangle.Equals(new Rectangle(0, 0, 0, 0)));
+
+            // If RectangleF implements IEquatable<RectangleF> (e.g. in .NET Core), then classes that are implicitly 
+            // convertible to RectangleF can potentially be equal.
+            // See https://github.com/dotnet/corefx/issues/5255.
+            bool expectsImplicitCastToRectangleF = typeof(IEquatable<RectangleF>).IsAssignableFrom(rectangle.GetType());
+            Assert.Equal(expectsImplicitCastToRectangleF, rectangle.Equals(new Rectangle(0, 0, 0, 0)));
+
+            Assert.False(rectangle.Equals((object)new Rectangle(0, 0, 0, 0))); // No implicit cast
         }
 
         [Fact]

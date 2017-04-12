@@ -28,6 +28,7 @@ namespace System.Reflection.Tests
 
         string sourceTestAssemblyPath = Path.Combine(Environment.CurrentDirectory, "TestAssembly.dll");
         string destTestAssemblyPath = Path.Combine(Environment.CurrentDirectory, "TestAssembly", "TestAssembly.dll");
+        string loadFromTestPath;
 
         public AssemblyTests()
         {
@@ -37,6 +38,9 @@ namespace System.Reflection.Tests
                 Directory.CreateDirectory(Path.GetDirectoryName(destTestAssemblyPath));
                 File.Move(sourceTestAssemblyPath, destTestAssemblyPath);
             }
+            string currAssemblyPath = typeof(AssemblyTests).Assembly.Location;
+            loadFromTestPath = Path.Combine(Path.GetDirectoryName(currAssemblyPath), "TestAssembly", Path.GetFileName(currAssemblyPath));
+            File.Copy(currAssemblyPath, loadFromTestPath, true);
         }
 
         public void Dispose()
@@ -163,38 +167,25 @@ namespace System.Reflection.Tests
             Assert.Equal(assembly.FullName, loadedAssembly.FullName);
         }
 
-        [Fact]
         public static void AssemblyReflectionOnlyLoadFromString()
         {
             AssemblyName an = typeof(AssemblyTests).Assembly.GetName();
-
-            Assembly a1 = Assembly.ReflectionOnlyLoad(an.FullName);
-            Assert.NotNull(a1);
-            Assert.Equal(an.FullName, a1.GetName().FullName);
+            Assert.Throws<NotSupportedException>(() => Assembly.ReflectionOnlyLoad(an.FullName));
         }
 
-        [Fact]
         public static void AssemblyReflectionOnlyLoadFromBytes()
         {
             Assembly assembly = typeof(AssemblyTests).Assembly;
             byte[] aBytes = System.IO.File.ReadAllBytes(assembly.Location);
-
-            Assembly a1 = Assembly.ReflectionOnlyLoad(aBytes);
-            Assert.NotNull(a1);
-            Assert.Equal(assembly.FullName, a1.GetName().FullName);
+            Assert.Throws<NotSupportedException>(() => Assembly.ReflectionOnlyLoad(aBytes));
         }
 
-        [Fact]
         public static void AssemblyReflectionOnlyLoadFromNeg()
         {
             Assert.Throws<ArgumentNullException>(() => Assembly.ReflectionOnlyLoad((string)null));
             Assert.Throws<ArgumentException>(() => Assembly.ReflectionOnlyLoad(string.Empty));
 
-            string emptyCName = new string('\0', 1);
-            Assert.Throws<ArgumentException>(() => Assembly.ReflectionOnlyLoad(emptyCName));
-
             Assert.Throws<ArgumentNullException>(() => Assembly.ReflectionOnlyLoad((byte[])null));
-            Assert.Throws<BadImageFormatException>(() => Assembly.ReflectionOnlyLoad(new byte[0]));
         }
 
         public static IEnumerable<object[]> GetModules_TestData()
@@ -337,6 +328,13 @@ namespace System.Reflection.Tests
             Assert.Throws<ArgumentNullException>("assemblyFile", () => Assembly.LoadFrom(null));
             var assem1 = Assembly.LoadFrom(destTestAssemblyPath);
             Assert.Equal(assem, assem1);
+
+            assem = Assembly.LoadFrom(typeof(AssemblyTests).Assembly.Location);
+            Assert.Equal(assem, typeof(AssemblyTests).Assembly);
+
+            // Test that loading assembly of same identity as TPA returns TPA assembly even if paths differ
+            assem1 = Assembly.LoadFrom(loadFromTestPath);
+            Assert.Equal(assem, assem1);
         }        
 
         [Fact]
@@ -345,6 +343,24 @@ namespace System.Reflection.Tests
             var assem = Assembly.UnsafeLoadFrom(destTestAssemblyPath);
             Assert.Throws<ArgumentNullException>("assemblyFile", () => Assembly.UnsafeLoadFrom(null));
         }        
+
+        [Fact]
+        public void GetFile()
+        {
+            Assert.Throws<ArgumentNullException>(() => typeof(AssemblyTests).Assembly.GetFile(null));
+            Assert.Throws<ArgumentException>(() => typeof(AssemblyTests).Assembly.GetFile(""));
+            Assert.Null(typeof(AssemblyTests).Assembly.GetFile("NonExistentfile.dll"));
+            Assert.NotNull(typeof(AssemblyTests).Assembly.GetFile("System.Runtime.Tests.dll"));
+            Assert.Equal(typeof(AssemblyTests).Assembly.GetFile("System.Runtime.Tests.dll").Name, typeof(AssemblyTests).Assembly.Location);
+        }
+
+        [Fact]
+        public void GetFiles()
+        {
+            Assert.NotNull(typeof(AssemblyTests).Assembly.GetFiles());
+            Assert.Equal(typeof(AssemblyTests).Assembly.GetFiles().Length, 1);
+            Assert.Equal(typeof(AssemblyTests).Assembly.GetFiles()[0].Name, typeof(AssemblyTests).Assembly.Location);
+        }
 
         // Helpers
         private static Assembly GetGetCallingAssembly()

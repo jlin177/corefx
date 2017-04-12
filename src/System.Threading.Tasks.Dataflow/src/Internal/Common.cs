@@ -14,10 +14,12 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Security;
 using System.Collections;
 using System.Runtime.ExceptionServices;
+
+#if USE_INTERNAL_THREADING
 using System.Threading.Tasks.Dataflow.Internal.Threading;
+#endif
 
 namespace System.Threading.Tasks.Dataflow.Internal
 {
@@ -595,12 +597,12 @@ namespace System.Threading.Tasks.Dataflow.Internal
         static class CachedGenericDelegates<T>
         {
             /// <summary>A function that returns the default value of T.</summary>
-            internal readonly static Func<T> DefaultTResultFunc = () => default(T);
+            internal static readonly Func<T> DefaultTResultFunc = () => default(T);
             /// <summary>
             /// A function to use as the body of ActionOnDispose in CreateUnlinkerShim.
             /// Passed a tuple of the sync obj, the target registry, and the target block as the state parameter.
             /// </summary>
-            internal readonly static Action<object, TargetRegistry<T>, ITargetBlock<T>> CreateUnlinkerShimAction =
+            internal static readonly Action<object, TargetRegistry<T>, ITargetBlock<T>> CreateUnlinkerShimAction =
                 (syncObj, registry, target) =>
             {
                 lock (syncObj) registry.Remove(target);

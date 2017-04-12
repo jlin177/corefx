@@ -90,7 +90,7 @@ namespace System.Threading
 
             public Invoker(SendOrPostCallback callback, object state)
             {
-                _executionContext = ExecutionContext.FastCapture();
+                _executionContext = ExecutionContext.Capture();
                 _callback = callback;
                 _state = state;
 
@@ -106,7 +106,7 @@ namespace System.Threading
                 if (_executionContext == null)
                     InvokeCore();
                 else
-                    ExecutionContext.Run(_executionContext, s_contextCallback, this, preserveSyncCtx: true);
+                    ExecutionContext.Run(_executionContext, s_contextCallback, this);
 
                 // If there was an ETW event that fired at the top of the winrt event handling loop, ETW listeners could
                 // use it as a marker of completion of the previous request. Since such an event does not exist we need to
@@ -134,7 +134,7 @@ namespace System.Threading
                     // that IAsyncInfo, because there's nothing Post can do with it (since Post returns void).
                     // So, to avoid these exceptions being lost forever, we post them to the ThreadPool.
                     //
-                    if (!(ex is ThreadAbortException) && !(ex.GetType().Name.EndsWith("AppDomainUnloadedException")))
+                    if (!(ex is ThreadAbortException) && !(ex is AppDomainUnloadedException))
                     {
                         if (!WindowsRuntimeMarshal.ReportUnhandledError(ex))
                         {

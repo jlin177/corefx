@@ -1,6 +1,8 @@
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
+
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Runtime.Serialization.Formatters.Tests;
 using Xunit;
 
@@ -11,7 +13,7 @@ namespace System.Drawing.Primitives.Tests
         public static IEnumerable<object[]> Color_Roundtrip_MemberData()
         {
             yield return new object[] { default(Color) };
-            yield return new object[] { Color.FromKnownColor(KnownColor.AliceBlue) };
+            yield return new object[] { Color.FromName("AliceBlue") };
             yield return new object[] { Color.AliceBlue };
             yield return new object[] { Color.FromArgb(255, 1, 2, 3) };
             yield return new object[] { Color.FromArgb(0, 1, 2, 3) };

@@ -73,7 +73,7 @@ namespace System.Linq.Expressions.Compiler
                 EmitExpression(node.Left);
                 EmitExpression(node.Right);
                 Type rightType = node.Right.Type;
-                if (TypeUtils.IsNullableType(rightType))
+                if (rightType.IsNullableType())
                 {
                     LocalBuilder loc = GetLocal(rightType);
                     _ilg.Emit(OpCodes.Stloc, loc);
@@ -81,10 +81,10 @@ namespace System.Linq.Expressions.Compiler
                     _ilg.EmitGetValue(rightType);
                     FreeLocal(loc);
                 }
-                Type indexType = TypeUtils.GetNonNullableType(rightType);
+                Type indexType = rightType.GetNonNullableType();
                 if (indexType != typeof(int))
                 {
-                    _ilg.EmitConvertToType(indexType, typeof(int), isChecked: true);
+                    _ilg.EmitConvertToType(indexType, typeof(int), isChecked: true, locals: this);
                 }
                 _ilg.Emit(OpCodes.Ldelema, node.Type);
             }
@@ -109,7 +109,16 @@ namespace System.Linq.Expressions.Compiler
             }
             else
             {
-                EmitExpressionAddress(node, type);
+                // NB: Stack spilling can generate ref locals.
+
+                if (node.Type.IsByRef && node.Type.GetElementType() == type)
+                {
+                    EmitExpression(node);
+                }
+                else
+                {
+                    EmitExpressionAddress(node, type);
+                }
             }
         }
 
@@ -146,7 +155,7 @@ namespace System.Linq.Expressions.Compiler
                 // the address of field bar to do the call.  The address of a local which
                 // has the same value as bar is sufficient.
 
-                // The C# compiler will not compile a lambda expression tree 
+                // The C# compiler will not compile a lambda expression tree
                 // which writes to the address of an init-only field. But one could
                 // probably use the expression tree API to build such an expression.
                 // (When compiled, such an expression would fail silently.)  It might
@@ -213,7 +222,7 @@ namespace System.Linq.Expressions.Compiler
         private void AddressOf(UnaryExpression node, Type type)
         {
             Debug.Assert(node.NodeType == ExpressionType.Unbox);
-            Debug.Assert(type.GetTypeInfo().IsValueType);
+            Debug.Assert(type.IsValueType);
 
             // Unbox leaves a pointer to the boxed value on the stack
             EmitExpression(node.Operand);
@@ -382,7 +391,7 @@ namespace System.Linq.Expressions.Compiler
 
         private LocalBuilder GetInstanceLocal(Type type)
         {
-            Type instanceLocalType = type.GetTypeInfo().IsValueType ? type.MakeByRefType() : type;
+            Type instanceLocalType = type.IsValueType ? type.MakeByRefType() : type;
             return GetLocal(instanceLocalType);
         }
     }

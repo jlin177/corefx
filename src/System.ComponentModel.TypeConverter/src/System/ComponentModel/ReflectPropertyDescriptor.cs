@@ -90,12 +90,12 @@ namespace System.ComponentModel
             {
                 if (type == null)
                 {
-                    Debug.WriteLine("type == null, name == " + name);
+                    Debug.WriteLine($"type == null, name == {name}");
                     throw new ArgumentException(string.Format(SR.ErrorInvalidPropertyType, name));
                 }
                 if (componentClass == null)
                 {
-                    Debug.WriteLine("componentClass == null, name == " + name);
+                    Debug.WriteLine($"componentClass == null, name == {name}");
                     throw new ArgumentException(string.Format(SR.InvalidNullArgument, nameof(componentClass)));
                 }
                 _type = type;
@@ -103,7 +103,7 @@ namespace System.ComponentModel
             }
             catch (Exception t)
             {
-                Debug.Fail("Property '" + name + "' on component " + componentClass.FullName + " failed to init.");
+                Debug.Fail($"Property '{name}' on component {componentClass.FullName} failed to init.");
                 Debug.Fail(t.ToString());
                 throw;
             }
@@ -181,7 +181,7 @@ namespace System.ComponentModel
                         {
                             _defaultValue = dva.Value;
                             // Default values for enums are often stored as their underlying integer type:
-                            if (_defaultValue != null && PropertyType.GetTypeInfo().IsEnum && PropertyType.GetTypeInfo().GetEnumUnderlyingType() == _defaultValue.GetType())
+                            if (_defaultValue != null && PropertyType.IsEnum && PropertyType.GetEnumUnderlyingType() == _defaultValue.GetType())
                             {
                                 _defaultValue = Enum.ToObject(PropertyType, _defaultValue);
                             }
@@ -273,13 +273,7 @@ namespace System.ComponentModel
         /// <summary>
         ///     Retrieves the type of the component this PropertyDescriptor is bound to.
         /// </summary>
-        public override Type ComponentType
-        {
-            get
-            {
-                return _componentClass;
-            }
-        }
+        public override Type ComponentType => _componentClass;
 
         /// <summary>
         ///      Retrieves the default value for this property.
@@ -295,7 +289,7 @@ namespace System.ComponentModel
                     {
                         // Default values for enums are often stored as their underlying integer type:
                         object defaultValue = ((DefaultValueAttribute)a).Value;
-                        bool storedAsUnderlyingType = defaultValue != null && PropertyType.GetTypeInfo().IsEnum && PropertyType.GetTypeInfo().GetEnumUnderlyingType() == defaultValue.GetType();
+                        bool storedAsUnderlyingType = defaultValue != null && PropertyType.IsEnum && PropertyType.GetEnumUnderlyingType() == defaultValue.GetType();
                         _defaultValue = storedAsUnderlyingType ?
                             Enum.ToObject(PropertyType, _defaultValue) :
                             defaultValue;
@@ -327,7 +321,7 @@ namespace System.ComponentModel
                             BindingFlags bindingFlags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.GetProperty;
                             _propInfo = _componentClass.GetProperty(Name, bindingFlags, null, PropertyType, Array.Empty<Type>(), Array.Empty<ParameterModifier>());
 #else 
-                            _propInfo = _componentClass.GetTypeInfo().GetProperty(Name, PropertyType, Array.Empty<Type>(), Array.Empty<ParameterModifier>());
+                            _propInfo = _componentClass.GetProperty(Name, PropertyType, Array.Empty<Type>(), Array.Empty<ParameterModifier>());
 #endif
                         }
                         if (_propInfo != null)
@@ -356,36 +350,18 @@ namespace System.ComponentModel
         /// <summary>
         ///     Determines if this property is an extender property.
         /// </summary>
-        private bool IsExtender
-        {
-            get
-            {
-                return (_receiverType != null);
-            }
-        }
+        private bool IsExtender => (_receiverType != null);
 
         /// <summary>
         ///     Indicates whether this property is read only.
         /// </summary>
-        public override bool IsReadOnly
-        {
-            get
-            {
-                return SetMethodValue == null || ((ReadOnlyAttribute)Attributes[typeof(ReadOnlyAttribute)]).IsReadOnly;
-            }
-        }
+        public override bool IsReadOnly => SetMethodValue == null || ((ReadOnlyAttribute)Attributes[typeof(ReadOnlyAttribute)]).IsReadOnly;
 
 
         /// <summary>
         ///     Retrieves the type of the property.
         /// </summary>
-        public override Type PropertyType
-        {
-            get
-            {
-                return _type;
-            }
-        }
+        public override Type PropertyType => _type;
 
         /// <summary>
         ///     Access to the reset method, if one exists for this property.
@@ -428,13 +404,13 @@ namespace System.ComponentModel
 
                     if (_setMethod == null)
                     {
-                        for (Type t = ComponentType.GetTypeInfo().BaseType; t != null && t != typeof(object); t = t.GetTypeInfo().BaseType)
+                        for (Type t = ComponentType.BaseType; t != null && t != typeof(object); t = t.BaseType)
                         {
 #if VERIFY_REFLECTION_CHANGE
                             BindingFlags bindingFlags = BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.Instance;
                             PropertyInfo p = t.GetProperty(name, bindingFlags, null, PropertyType, Array.Empty<Type>(), null);
 #endif
-                            PropertyInfo p = t.GetTypeInfo().GetProperty(name, PropertyType, Array.Empty<Type>(), null);
+                            PropertyInfo p = t.GetProperty(name, PropertyType, Array.Empty<Type>(), null);
                             if (p != null)
                             {
                                 _setMethod = p.SetMethod;
@@ -458,7 +434,7 @@ namespace System.ComponentModel
                             BindingFlags bindingFlags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.GetProperty;
                             _propInfo = _componentClass.GetProperty(Name, bindingFlags, null, PropertyType, Array.Empty<Type>(), Array.Empty<ParameterModifier>());
 #else
-                            _propInfo = _componentClass.GetTypeInfo().GetProperty(Name, PropertyType, Array.Empty<Type>(), Array.Empty<ParameterModifier>());
+                            _propInfo = _componentClass.GetProperty(Name, PropertyType, Array.Empty<Type>(), Array.Empty<ParameterModifier>());
 #endif
                         }
                         if (_propInfo != null)
@@ -515,7 +491,7 @@ namespace System.ComponentModel
 
             // If there's an event called <propertyname>Changed, hook the caller's handler directly up to that on the component
             EventDescriptor changedEvent = ChangedEventValue;
-            if (changedEvent != null && changedEvent.EventType.GetTypeInfo().IsInstanceOfType(handler))
+            if (changedEvent != null && changedEvent.EventType.IsInstanceOfType(handler))
             {
                 changedEvent.AddEventHandler(component, handler);
             }
@@ -528,10 +504,7 @@ namespace System.ComponentModel
                 if (GetValueChangedHandler(component) == null)
                 {
                     EventDescriptor iPropChangedEvent = IPropChangedEventValue;
-                    if (iPropChangedEvent != null)
-                    {
-                        iPropChangedEvent.AddEventHandler(component, new PropertyChangedEventHandler(OnINotifyPropertyChanged));
-                    }
+                    iPropChangedEvent?.AddEventHandler(component, new PropertyChangedEventHandler(OnINotifyPropertyChanged));
                 }
 
                 base.AddValueChanged(component, handler);
@@ -687,10 +660,7 @@ namespace System.ComponentModel
 
                     // Now notify the change service that the change was successful.
                     //
-                    if (changeService != null)
-                    {
-                        changeService.OnComponentChanged(component, notifyDesc, oldValue, value);
-                    }
+                    changeService?.OnComponentChanged(component, notifyDesc, oldValue, value);
                 }
             }
         }
@@ -803,7 +773,7 @@ namespace System.ComponentModel
 
             // NOTE : Must look at method OR property, to handle the case of Extender properties...
             //
-            // Note : Because we are using BindingFlags.DeclaredOnly it is more effcient to re-aquire
+            // Note : Because we are using BindingFlags.DeclaredOnly it is more effcient to re-acquire
             //      : the property info, rather than use the one we have cached.  The one we have cached
             //      : may ave come from a base class, meaning we will request custom metadata for this
             //      : class twice.
@@ -817,7 +787,7 @@ namespace System.ComponentModel
             while (currentReflectType != null && currentReflectType != typeof(object))
             {
                 depth++;
-                currentReflectType = currentReflectType.GetTypeInfo().BaseType;
+                currentReflectType = currentReflectType.BaseType;
             }
 
             // Now build up an array in reverse order
@@ -850,11 +820,11 @@ namespace System.ComponentModel
                     if (IsExtender)
                     {
                         //receiverType is used to avoid ambitiousness when there are overloads for the get method.
-                        memberInfo = currentReflectType.GetTypeInfo().GetMethod("Get" + Name, new Type[] { _receiverType }, null);
+                        memberInfo = currentReflectType.GetMethod("Get" + Name, new Type[] { _receiverType }, null);
                     }
                     else
                     {
-                        memberInfo = currentReflectType.GetTypeInfo().GetProperty(Name, PropertyType, Array.Empty<Type>(), Array.Empty<ParameterModifier>());
+                        memberInfo = currentReflectType.GetProperty(Name, PropertyType, Array.Empty<Type>(), Array.Empty<ParameterModifier>());
                     }
 #endif
                     // Get custom attributes for the member info.
@@ -866,7 +836,7 @@ namespace System.ComponentModel
 
                     // Ready for the next loop iteration.
                     //
-                    currentReflectType = currentReflectType.GetTypeInfo().BaseType;
+                    currentReflectType = currentReflectType.BaseType;
                 }
 
                 // Look in the attribute stack for AttributeProviders
@@ -888,7 +858,7 @@ namespace System.ComponentModel
 
                                     if (!String.IsNullOrEmpty(sta.PropertyName))
                                     {
-                                        MemberInfo[] milist = specificType.GetTypeInfo().GetMember(sta.PropertyName);
+                                        MemberInfo[] milist = specificType.GetMember(sta.PropertyName);
                                         if (milist.Length > 0 && milist[0] != null)
                                         {
                                             stAttrs = ReflectTypeDescriptionProvider.ReflectGetAttributes(milist[0]);
@@ -950,7 +920,7 @@ namespace System.ComponentModel
 
             if (IsExtender)
             {
-                Debug.WriteLine("[" + Name + "]:   ---> returning: null");
+                Debug.WriteLine($"[{Name}]:   ---> returning: null");
                 return null;
             }
 
@@ -969,13 +939,10 @@ namespace System.ComponentModel
                 {
                     string name = null;
                     IComponent comp = component as IComponent;
-                    if (comp != null)
+                    ISite site = comp?.Site;
+                    if (site?.Name != null)
                     {
-                        ISite site = comp.Site;
-                        if (site != null && site.Name != null)
-                        {
-                            name = site.Name;
-                        }
+                        name = site.Name;
                     }
 
                     if (name == null)
@@ -988,11 +955,7 @@ namespace System.ComponentModel
                         t = t.InnerException;
                     }
 
-                    string message = t.Message;
-                    if (message == null)
-                    {
-                        message = t.GetType().Name;
-                    }
+                    string message = t.Message ?? t.GetType().Name;
 
                     throw new TargetInvocationException(string.Format(SR.ErrorPropertyAccessorException, Name, name, message), t);
                 }
@@ -1038,7 +1001,7 @@ namespace System.ComponentModel
             // If there's an event called <propertyname>Changed, we hooked the caller's
             // handler directly up to that on the component, so remove it now.
             EventDescriptor changedEvent = ChangedEventValue;
-            if (changedEvent != null && changedEvent.EventType.GetTypeInfo().IsInstanceOfType(handler))
+            if (changedEvent != null && changedEvent.EventType.IsInstanceOfType(handler))
             {
                 changedEvent.RemoveEventHandler(component, handler);
             }
@@ -1054,10 +1017,7 @@ namespace System.ComponentModel
                 if (GetValueChangedHandler(component) == null)
                 {
                     EventDescriptor iPropChangedEvent = IPropChangedEventValue;
-                    if (iPropChangedEvent != null)
-                    {
-                        iPropChangedEvent.RemoveEventHandler(component, new PropertyChangedEventHandler(OnINotifyPropertyChanged));
-                    }
+                    iPropChangedEvent?.RemoveEventHandler(component, new PropertyChangedEventHandler(OnINotifyPropertyChanged));
                 }
             }
         }
@@ -1216,10 +1176,7 @@ namespace System.ComponentModel
                     {
                         // Now notify the change service that the change was successful.
                         //
-                        if (changeService != null)
-                        {
-                            changeService.OnComponentChanged(component, this, oldValue, value);
-                        }
+                        changeService?.OnComponentChanged(component, this, oldValue, value);
                     }
                 }
             }
@@ -1273,12 +1230,6 @@ namespace System.ComponentModel
         ///     from direct calls made to PropertyDescriptor.SetValue (value=false). For example, the component may
         ///     implement the INotifyPropertyChanged interface, or may have an explicit '{name}Changed' event for this property.
         /// </summary>
-        public override bool SupportsChangeEvents
-        {
-            get
-            {
-                return IPropChangedEventValue != null || ChangedEventValue != null;
-            }
-        }
+        public override bool SupportsChangeEvents => IPropChangedEventValue != null || ChangedEventValue != null;
     }
 }

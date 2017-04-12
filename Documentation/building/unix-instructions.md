@@ -1,6 +1,6 @@
 Building CoreFX on FreeBSD, Linux and OS X
 ==========================================
-##Building
+## Building
 
 1. Install the prerequisites ([Linux](#user-content-linux), [macOS](#user-content-macos))
 2. Clone the corefx repo `git clone https://github.com/dotnet/corefx.git`
@@ -47,7 +47,9 @@ For Ubuntu 14.04, install the following packages:
 
 `sudo apt-get install libunwind8 libicu52 curl`
 
-For Ubuntu 16.x you may need to replace libicu52 with libicu57.
+For Ubuntu 16.04 LTS / Bash on Ubuntu on Windows you may need to replace libicu52 with libicu55. Ubuntu 16.10 will require libcu57.
+
+`sudo apt-get install libunwind8 libicu55 curl`
 
 In addition to the above packages, the runtime versions of the packages listed
 in the native section should also be installed (this happens automatically on
@@ -70,7 +72,7 @@ but the headers are no longer available since that library version is out of sup
 Some compilers get upset over new headers being in `/usr/local/include` with the old library being present at
 `/usr/lib/libcrypto.dylib` (the tools have no issue with the versioned files, e.g. `/usr/lib/libcrypto.0.9.8.dylib`),
 and so Homebrew does not allow the OpenSSL package to be installed into system default paths. A minimal installation
-is presented here to facilitiate simplifying runtime requirements and compile-time requirements (for build systems using
+is presented here to facilitate simplifying runtime requirements and compile-time requirements (for build systems using
 CMake's `find_package`, like ours):
 ```sh
 # We need to make the runtime libraries discoverable, as well as make
@@ -100,3 +102,4 @@ If you see errors along the lines of `SendFailure (Error writing headers)` you m
 mozroots --import --sync
 ```
 
+Bash on Ubuntu on Windows issues are tracked by: [#11057](https://github.com/dotnet/corefx/issues/11057)

@@ -8,6 +8,7 @@
 
 namespace System.Diagnostics.Tracing
 {
+#if !netfx
     [System.FlagsAttribute]
     public enum EventActivityOptions
     {
@@ -54,10 +55,12 @@ namespace System.Diagnostics.Tracing
         public bool DisableEvent(int eventId) { throw null; }
         public bool EnableEvent(int eventId) { throw null; }
     }
+#endif // !netfx
     public class EventCounter {
         public EventCounter(string name, EventSource eventSource) { }
         public void WriteMetric(float value) { }
     }
+#if !netfx
     [System.AttributeUsageAttribute((System.AttributeTargets)(12), Inherited = false)]
     public partial class EventDataAttribute : System.Attribute
     {
@@ -103,6 +106,7 @@ namespace System.Diagnostics.Tracing
         Sqm = (long)2251799813685248,
         WdiContext = (long)562949953421312,
         WdiDiagnostic = (long)1125899906842624,
+        MicrosoftTelemetry = (long)562949953421312,
     }
     public enum EventLevel
     {
@@ -283,4 +287,5 @@ namespace System.Diagnostics.Tracing
     {
         public NonEventAttribute() { }
     }
+#endif // !netfx
 }

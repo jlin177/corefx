@@ -2,20 +2,15 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
-extern alias System_Runtime_Extensions;
-extern alias System_Security_Principal;
-
-using System.Diagnostics;
+using Internal.Runtime.Augments;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.ConstrainedExecution;
-using Internal.Runtime.Augments;
+using System.Security.Principal;
 
 namespace System.Threading
 {
-    using AppDomain = System_Runtime_Extensions::System.AppDomain;
-    using IPrincipal = System_Security_Principal::System.Security.Principal.IPrincipal;
-
     public sealed partial class Thread : CriticalFinalizerObject
     {
         [ThreadStatic]
@@ -179,27 +174,29 @@ namespace System.Threading
 
         public void Abort()
         {
-            throw new PlatformNotSupportedException();
+            throw new PlatformNotSupportedException(SR.PlatformNotSupported_ThreadAbort);
         }
 
         public void Abort(object stateInfo)
         {
-            throw new PlatformNotSupportedException();
+            throw new PlatformNotSupportedException(SR.PlatformNotSupported_ThreadAbort);
         }
 
         public static void ResetAbort()
         {
-            throw new PlatformNotSupportedException();
+            throw new PlatformNotSupportedException(SR.PlatformNotSupported_ThreadAbort);
         }
 
+        [ObsoleteAttribute("Thread.Suspend has been deprecated.  Please use other classes in System.Threading, such as Monitor, Mutex, Event, and Semaphore, to synchronize Threads or protect resources.  http://go.microsoft.com/fwlink/?linkid=14202", false)]
         public void Suspend()
         {
-            throw new PlatformNotSupportedException();
+            throw new PlatformNotSupportedException(SR.PlatformNotSupported_ThreadSuspend);
         }
 
+        [ObsoleteAttribute("Thread.Resume has been deprecated.  Please use other classes in System.Threading, such as Monitor, Mutex, Event, and Semaphore, to synchronize Threads or protect resources.  http://go.microsoft.com/fwlink/?linkid=14202", false)]
         public void Resume()
         {
-            throw new PlatformNotSupportedException();
+            throw new PlatformNotSupportedException(SR.PlatformNotSupported_ThreadSuspend);
         }
 
         // Currently, no special handling is done for critical regions, and no special handling is necessary to ensure thread
@@ -261,6 +258,18 @@ namespace System.Threading
                 throw new ArgumentOutOfRangeException(nameof(timeout), SR.ArgumentOutOfRange_TimeoutMilliseconds);
             }
             return (int)timeoutMilliseconds;
+        }
+
+        [Obsolete("Thread.GetCompressedStack is no longer supported. Please use the System.Threading.CompressedStack class")]
+        public CompressedStack GetCompressedStack()
+        {
+            throw new InvalidOperationException(SR.Thread_GetSetCompressedStack_NotSupported);
+        }
+
+        [Obsolete("Thread.SetCompressedStack is no longer supported. Please use the System.Threading.CompressedStack class")]
+        public void SetCompressedStack(CompressedStack stack)
+        {
+            throw new InvalidOperationException(SR.Thread_GetSetCompressedStack_NotSupported);
         }
 
         public static AppDomain GetDomain() => AppDomain.CurrentDomain;

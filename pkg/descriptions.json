@@ -116,6 +116,11 @@
     "CommonTypes": []
   },
   {
+    "Name": "Microsoft.Private.CoreFx.UAP",
+    "Description": "Package used to represent the portions of UAP that come from CoreFx.",
+    "CommonTypes": []
+  },
+  {
     "Name": "Microsoft.TargetingPack.NETFramework.v4.6",
     "Description": "Contains the .NET Framework v4.6 targeting pack.",
     "CommonTypes": []
@@ -139,14 +144,13 @@
     ]
   },
   {
-    "Name": "NETStandard.Library",
-    "Description": "A set of standard .NET APIs that are prescribed to be used and supported together. This includes all of the APIs in the NETStandard.Platform package plus additional libraries that are core to .NET but built on top of NETStandard.Platform.",
-    "CommonTypes": [
-    ]
+    "Name": "Microsoft.XmlSerializer.Generator",
+    "Description": "Provides SGen tool to generate Xml serialization code for types in a specified assembly in order to improve the startup performance of a XmlSerializer when it serializes or deserializes objects of the specified types",
+    "CommonTypes": []
   },
   {
-    "Name": "NETStandard.Platform",
-    "Description": "A set of low level APIs that all .NET platforms must support.",
+    "Name": "NETStandard.Library.NETFramework",
+    "Description": "Adds NETStandard2.0 support to .NET Framework.",
     "CommonTypes": [
     ]
   },
@@ -354,7 +358,7 @@
       "System.Composition.Convention.ConventionBuilder",
       "System.Composition.Hosting.CompositionHost",
       "System.Composition.CompositionContext",
-      "System.Composition.CompositionContextExtensions",
+      "System.Composition.CompositionContextExtensions"
     ]
   },
   {
@@ -397,6 +401,14 @@
     "CommonTypes": [
       "System.Composition.CompositionContextExtensions",
       "System.Composition.Hosting.ContainerConfiguration"
+    ]
+  },
+  {
+    "Name": "System.Configuration.ConfigurationManager",
+    "Description": "Provides types that support using configuration files.",
+    "CommonTypes": [
+      "System.Configuration.Configuration",
+      "System.Configuration.ConfigurationManager"
     ]
   },
   {
@@ -775,6 +787,13 @@
     ]
   },
   {
+    "Name": "System.IO.Ports",
+    "Description": "Provides classes for controlling serial ports.",
+    "CommonTypes": [
+      "System.IO.Ports.SerialPort"
+     ]
+  },
+  {
     "Name": "System.IO.UnmanagedMemoryStream",
     "Description": "Provides classes for access to unmanaged blocks of memory from managed code.",
     "CommonTypes": [
@@ -834,6 +853,13 @@
     ]
   },
   {
+    "Name": "System.Memory",
+    "Description": "Provides types for efficient low-allocation access to memory.",
+    "CommonTypes": [
+      "System.Span",
+    ]
+  },
+  {
     "Name": "System.Net.Http",
     "Description": "Provides a programming interface for modern HTTP applications, including HTTP client components that allow applications to consume web services over HTTP and HTTP components that can be used by both clients and servers for parsing HTTP headers.",
     "CommonTypes": [
@@ -847,6 +873,13 @@
       "System.Net.Http.StreamContent",
       "System.Net.Http.FormUrlEncodedContent",
       "System.Net.Http.HttpMessageHandler"
+    ]
+  },
+  {
+    "Name": "System.Net.HttpListener",
+    "Description": "Provides a simple, programmatically controlled HTTP protocol listener.",
+    "CommonTypes": [
+      "System.Net.HttpListener"
     ]
   },
   {
@@ -1031,7 +1064,7 @@
     "Name": "System.Numerics.Vectors.WindowsRuntime",
     "Description": "Provides extension methods for converting between System.Numerics.Vector2 and Windows.Foundation.Point and Size.",
     "CommonTypes": [
-      "System.Numerics.VectorExtensions",
+      "System.Numerics.VectorExtensions"
     ]
   },
   {
@@ -1145,13 +1178,13 @@
   },
   {
     "Name": "System.Reflection.Metadata",
-        "Description": "This packages provides a low-level .NET (ECMA-335) metadata reader and writer. It's geared for performance and is the ideal choice for building higher-level libraries that intend to provide their own object model, such as compilers.",
+    "Description": "This packages provides a low-level .NET (ECMA-335) metadata reader and writer. It's geared for performance and is the ideal choice for building higher-level libraries that intend to provide their own object model, such as compilers.",
     "CommonTypes": [
       "System.Reflection.Metadata.MetadataReader",
-            "System.Reflection.PortableExecutable.PEReader",  
-            "System.Reflection.Metadata.Ecma335.MetadataBuilder",          
-            "System.Reflection.PortableExecutable.PEBuilder",          
-            "System.Reflection.PortableExecutable.ManagedPEBuilder"
+      "System.Reflection.PortableExecutable.PEReader",
+      "System.Reflection.Metadata.Ecma335.MetadataBuilder",
+      "System.Reflection.PortableExecutable.PEBuilder",
+      "System.Reflection.PortableExecutable.ManagedPEBuilder"
     ]
   },
   {
@@ -1232,7 +1265,7 @@
     "Name": "System.Runtime.CompilerServices.Unsafe",
     "Description": "Provides the System.Runtime.CompilerServices.Unsafe class, which provides generic, low-level functionality for manipulating pointers.",
     "CommonTypes": [
-      "System.Runtime.CompilerServices.Unsafe",
+      "System.Runtime.CompilerServices.Unsafe"
     ]
   },
   {
@@ -1500,7 +1533,52 @@
     "Description": "Provides access to Windows Data Protection Api.",
     "CommonTypes": [
       "System.Security.Cryptography.DataProtectionScope",
-      "System.Security.Cryptography.ProtectedData",
+      "System.Security.Cryptography.ProtectedData"
+    ]
+  },
+  {
+    "Name": "System.Security.Cryptography.Xml",
+    "Description": "Provides classes to support the creation and validation of XML digital signatures. The classes in this namespace implement the World Wide Web Consortium Recommendation, \"XML-Signature Syntax and Processing\", described at http://www.w3.org/TR/xmldsig-core/.",
+    "CommonTypes": [ 
+      "System.Security.Cryptography.Xml.CipherData",
+      "System.Security.Cryptography.Xml.CipherReference",
+      "System.Security.Cryptography.Xml.DataObject",
+      "System.Security.Cryptography.Xml.DataReference",
+      "System.Security.Cryptography.Xml.DSAKeyValue",
+      "System.Security.Cryptography.Xml.EncryptedData",
+      "System.Security.Cryptography.Xml.EncryptedKey",
+      "System.Security.Cryptography.Xml.EncryptedReference",
+      "System.Security.Cryptography.Xml.EncryptedType",
+      "System.Security.Cryptography.Xml.EncryptedXml",
+      "System.Security.Cryptography.Xml.EncryptionMethod",
+      "System.Security.Cryptography.Xml.EncryptionProperty",
+      "System.Security.Cryptography.Xml.EncryptionPropertyCollection",
+      "System.Security.Cryptography.Xml.KeyInfo",
+      "System.Security.Cryptography.Xml.KeyInfoClause",
+      "System.Security.Cryptography.Xml.KeyInfoEncryptedKey",
+      "System.Security.Cryptography.Xml.KeyInfoName",
+      "System.Security.Cryptography.Xml.KeyInfoNode",
+      "System.Security.Cryptography.Xml.KeyInfoRetrievalMethod",
+      "System.Security.Cryptography.Xml.KeyInfoX509Data",
+      "System.Security.Cryptography.Xml.KeyReference",
+      "System.Security.Cryptography.Xml.Reference",
+      "System.Security.Cryptography.Xml.ReferenceList",
+      "System.Security.Cryptography.Xml.RSAKeyValue",
+      "System.Security.Cryptography.Xml.Signature",
+      "System.Security.Cryptography.Xml.SignedInfo",
+      "System.Security.Cryptography.Xml.SignedXml",
+      "System.Security.Cryptography.Xml.Transform",
+      "System.Security.Cryptography.Xml.TransformChain",
+      "System.Security.Cryptography.Xml.XmlDecryptionTransform",
+      "System.Security.Cryptography.Xml.XmlDsigBase64Transform",
+      "System.Security.Cryptography.Xml.XmlDsigC14NTransform",
+      "System.Security.Cryptography.Xml.XmlDsigC14NWithCommentsTransform",
+      "System.Security.Cryptography.Xml.XmlDsigEnvelopedSignatureTransform",
+      "System.Security.Cryptography.Xml.XmlDsigExcC14NTransform",
+      "System.Security.Cryptography.Xml.XmlDsigExcC14NWithCommentsTransform",
+      "System.Security.Cryptography.Xml.XmlDsigXPathTransform",
+      "System.Security.Cryptography.Xml.XmlDsigXsltTransform",
+      "System.Security.Cryptography.Xml.XmlLicenseTransform"
     ]
   },
   {
@@ -1623,7 +1701,7 @@
       "System.ServiceProcess.ServiceType"
     ]
   },
-  {
+ {
     "Name": "System.Text.Encoding",
     "Description": "Provides base abstract encoding classes for converting blocks of characters to and from blocks of bytes.",
     "CommonTypes": [
@@ -1796,7 +1874,7 @@
     ]
   },
   {
-    "Name": "System.Transactions",
+    "Name": "System.Transactions.Local",
     "Description": "Provides classes that allow you to write your own transactional application and resource manager.",
     "CommonTypes": [
       "System.Transactions.Transaction",
@@ -1805,7 +1883,7 @@
   },
   {
     "Name": "System.ValueTuple",
-    "Description": "Provides the System.ValueTuple structs, which implement the underlying types for C# 7 tuples.",
+    "Description": "Provides the System.ValueTuple structs, which implement the underlying types for tuples in C# and Visual Basic.",
     "CommonTypes": [
       "System.ValueTuple",
       "System.ValueTuple<T1>",

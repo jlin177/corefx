@@ -42,7 +42,7 @@ namespace System.Linq.Expressions.Interpreter
             Delegate d = _creator.CreateDelegate(closure);
 
             frame.Push(d);
-            return +1;
+            return 1;
         }
     }
 
@@ -58,11 +58,11 @@ namespace System.Linq.Expressions.Interpreter
         public override int ConsumedStack => 1;
         public override int ProducedStack => 1;
         public override string InstructionName => "TypeIs";
-        
+
         public override int Run(InterpretedFrame frame)
         {
-            frame.Push(ScriptingRuntimeHelpers.BooleanToObject(_type.IsInstanceOfType(frame.Pop())));
-            return +1;
+            frame.Push(_type.IsInstanceOfType(frame.Pop()));
+            return 1;
         }
 
         public override string ToString() => "TypeIs " + _type.ToString();
@@ -80,19 +80,12 @@ namespace System.Linq.Expressions.Interpreter
         public override int ConsumedStack => 1;
         public override int ProducedStack => 1;
         public override string InstructionName => "TypeAs";
-        
+
         public override int Run(InterpretedFrame frame)
         {
             object value = frame.Pop();
-            if (_type.IsInstanceOfType(value))
-            {
-                frame.Push(value);
-            }
-            else
-            {
-                frame.Push(null);
-            }
-            return +1;
+            frame.Push(_type.IsInstanceOfType(value) ? value : null);
+            return 1;
         }
 
         public override string ToString() => "TypeAs " + _type.ToString();
@@ -112,27 +105,8 @@ namespace System.Linq.Expressions.Interpreter
         {
             object type = frame.Pop();
             object obj = frame.Pop();
-            frame.Push(ScriptingRuntimeHelpers.BooleanToObject(obj != null && (object)obj.GetType() == type));
-            return +1;
-        }
-    }
-
-    internal sealed class NullableTypeEqualsInstruction : Instruction
-    {
-        public static readonly NullableTypeEqualsInstruction Instance = new NullableTypeEqualsInstruction();
-
-        public override int ConsumedStack => 2;
-        public override int ProducedStack => 1;
-        public override string InstructionName => "NullableTypeEquals";
-
-        private NullableTypeEqualsInstruction() { }
-
-        public override int Run(InterpretedFrame frame)
-        {
-            object type = frame.Pop();
-            object obj = frame.Pop();
-            frame.Push(ScriptingRuntimeHelpers.BooleanToObject(obj != null && (object)obj.GetType() == type));
-            return +1;
+            frame.Push((object)obj?.GetType() == type);
+            return 1;
         }
     }
 
@@ -151,8 +125,8 @@ namespace System.Linq.Expressions.Interpreter
             public override int Run(InterpretedFrame frame)
             {
                 object obj = frame.Pop();
-                frame.Push(ScriptingRuntimeHelpers.BooleanToObject(obj != null));
-                return +1;
+                frame.Push(obj != null);
+                return 1;
             }
         }
 
@@ -162,10 +136,11 @@ namespace System.Linq.Expressions.Interpreter
             {
                 if (frame.Peek() == null)
                 {
-                    frame.Pop();
-                    throw new InvalidOperationException();
+                    // Trigger InvalidOperationException with same localized method as if we'd called the Value getter.
+                    return (int)default(int?);
                 }
-                return +1;
+
+                return 1;
             }
         }
 
@@ -185,7 +160,7 @@ namespace System.Linq.Expressions.Interpreter
                     frame.Pop();
                     frame.Push(Activator.CreateInstance(defaultValueType));
                 }
-                return +1;
+                return 1;
             }
         }
 
@@ -197,15 +172,8 @@ namespace System.Linq.Expressions.Interpreter
             {
                 object dflt = frame.Pop();
                 object obj = frame.Pop();
-                if (obj == null)
-                {
-                    frame.Push(dflt);
-                }
-                else
-                {
-                    frame.Push(obj);
-                }
-                return +1;
+                frame.Push(obj ?? dflt);
+                return 1;
             }
         }
 
@@ -219,17 +187,17 @@ namespace System.Linq.Expressions.Interpreter
                 object obj = frame.Pop();
                 if (obj == null)
                 {
-                    frame.Push(ScriptingRuntimeHelpers.BooleanToObject(other == null));
+                    frame.Push(other == null);
                 }
                 else if (other == null)
                 {
-                    frame.Push(ScriptingRuntimeHelpers.Boolean_False);
+                    frame.Push(Utils.BoxedFalse);
                 }
                 else
                 {
-                    frame.Push(ScriptingRuntimeHelpers.BooleanToObject(obj.Equals(other)));
+                    frame.Push(obj.Equals(other));
                 }
-                return +1;
+                return 1;
             }
         }
 
@@ -238,15 +206,8 @@ namespace System.Linq.Expressions.Interpreter
             public override int Run(InterpretedFrame frame)
             {
                 object obj = frame.Pop();
-                if (obj == null)
-                {
-                    frame.Push("");
-                }
-                else
-                {
-                    frame.Push(obj.ToString());
-                }
-                return +1;
+                frame.Push(obj == null ? "" : obj.ToString());
+                return 1;
             }
         }
 
@@ -255,15 +216,8 @@ namespace System.Linq.Expressions.Interpreter
             public override int Run(InterpretedFrame frame)
             {
                 object obj = frame.Pop();
-                if (obj == null)
-                {
-                    frame.Push(ScriptingRuntimeHelpers.Int32ToObject(0));
-                }
-                else
-                {
-                    frame.Push(obj.GetHashCode());
-                }
-                return +1;
+                frame.Push(obj?.GetHashCode() ?? 0);
+                return 1;
             }
         }
 
@@ -286,7 +240,7 @@ namespace System.Linq.Expressions.Interpreter
                     }
                 case "ToString": return s_toString ?? (s_toString = new ToStringClass());
                 default:
-                    // System.Nullable doesn't have other instance methods 
+                    // System.Nullable doesn't have other instance methods
                     throw ContractUtils.Unreachable;
             }
         }
@@ -299,7 +253,7 @@ namespace System.Linq.Expressions.Interpreter
 
     internal abstract class CastInstruction : Instruction
     {
-        private static CastInstruction s_boolean, s_byte, s_char, s_dateTime, s_decimal, s_double, s_int16, s_int32, s_int64, s_SByte, s_single, s_string, s_UInt16, s_UInt32, s_UInt64;
+        private static CastInstruction s_Boolean, s_Byte, s_Char, s_DateTime, s_Decimal, s_Double, s_Int16, s_Int32, s_Int64, s_SByte, s_Single, s_String, s_UInt16, s_UInt32, s_UInt64;
 
         public override int ConsumedStack => 1;
         public override int ProducedStack => 1;
@@ -311,7 +265,7 @@ namespace System.Linq.Expressions.Interpreter
             {
                 object value = frame.Pop();
                 frame.Push((T)value);
-                return +1;
+                return 1;
             }
         }
 
@@ -326,7 +280,7 @@ namespace System.Linq.Expressions.Interpreter
 
             public new static CastInstruction Create(Type t)
             {
-                if (t.GetTypeInfo().IsValueType && !TypeUtils.IsNullableType(t))
+                if (t.IsValueType && !t.IsNullableType())
                 {
                     return new Value(t);
                 }
@@ -343,8 +297,8 @@ namespace System.Linq.Expressions.Interpreter
                 {
                     Type valueType = value.GetType();
 
-                    if (!TypeUtils.HasReferenceConversion(valueType, _t) &&
-                        !TypeUtils.HasIdentityPrimitiveOrNullableConversion(valueType, _t))
+                    if (!valueType.HasReferenceConversionTo(_t) &&
+                        !valueType.HasIdentityPrimitiveOrNullableConversionTo(_t))
                     {
                         throw new InvalidCastException();
                     }
@@ -360,7 +314,7 @@ namespace System.Linq.Expressions.Interpreter
                 {
                     ConvertNull(frame);
                 }
-                return +1;
+                return 1;
             }
 
             protected abstract void ConvertNull(InterpretedFrame frame);
@@ -394,26 +348,24 @@ namespace System.Linq.Expressions.Interpreter
 
         public static Instruction Create(Type t)
         {
-            if (!t.GetTypeInfo().IsEnum)
+            Debug.Assert(!t.IsEnum);
+            switch (t.GetTypeCode())
             {
-                switch (t.GetTypeCode())
-                {
-                    case TypeCode.Boolean: return s_boolean ?? (s_boolean = new CastInstructionT<bool>());
-                    case TypeCode.Byte: return s_byte ?? (s_byte = new CastInstructionT<byte>());
-                    case TypeCode.Char: return s_char ?? (s_char = new CastInstructionT<char>());
-                    case TypeCode.DateTime: return s_dateTime ?? (s_dateTime = new CastInstructionT<DateTime>());
-                    case TypeCode.Decimal: return s_decimal ?? (s_decimal = new CastInstructionT<decimal>());
-                    case TypeCode.Double: return s_double ?? (s_double = new CastInstructionT<double>());
-                    case TypeCode.Int16: return s_int16 ?? (s_int16 = new CastInstructionT<short>());
-                    case TypeCode.Int32: return s_int32 ?? (s_int32 = new CastInstructionT<int>());
-                    case TypeCode.Int64: return s_int64 ?? (s_int64 = new CastInstructionT<long>());
-                    case TypeCode.SByte: return s_SByte ?? (s_SByte = new CastInstructionT<sbyte>());
-                    case TypeCode.Single: return s_single ?? (s_single = new CastInstructionT<float>());
-                    case TypeCode.String: return s_string ?? (s_string = new CastInstructionT<string>());
-                    case TypeCode.UInt16: return s_UInt16 ?? (s_UInt16 = new CastInstructionT<ushort>());
-                    case TypeCode.UInt32: return s_UInt32 ?? (s_UInt32 = new CastInstructionT<uint>());
-                    case TypeCode.UInt64: return s_UInt64 ?? (s_UInt64 = new CastInstructionT<ulong>());
-                }
+                case TypeCode.Boolean: return s_Boolean ?? (s_Boolean = new CastInstructionT<bool>());
+                case TypeCode.Byte: return s_Byte ?? (s_Byte = new CastInstructionT<byte>());
+                case TypeCode.Char: return s_Char ?? (s_Char = new CastInstructionT<char>());
+                case TypeCode.DateTime: return s_DateTime ?? (s_DateTime = new CastInstructionT<DateTime>());
+                case TypeCode.Decimal: return s_Decimal ?? (s_Decimal = new CastInstructionT<decimal>());
+                case TypeCode.Double: return s_Double ?? (s_Double = new CastInstructionT<double>());
+                case TypeCode.Int16: return s_Int16 ?? (s_Int16 = new CastInstructionT<short>());
+                case TypeCode.Int32: return s_Int32 ?? (s_Int32 = new CastInstructionT<int>());
+                case TypeCode.Int64: return s_Int64 ?? (s_Int64 = new CastInstructionT<long>());
+                case TypeCode.SByte: return s_SByte ?? (s_SByte = new CastInstructionT<sbyte>());
+                case TypeCode.Single: return s_Single ?? (s_Single = new CastInstructionT<float>());
+                case TypeCode.String: return s_String ?? (s_String = new CastInstructionT<string>());
+                case TypeCode.UInt16: return s_UInt16 ?? (s_UInt16 = new CastInstructionT<ushort>());
+                case TypeCode.UInt32: return s_UInt32 ?? (s_UInt32 = new CastInstructionT<uint>());
+                case TypeCode.UInt64: return s_UInt64 ?? (s_UInt64 = new CastInstructionT<ulong>());
             }
 
             return CastInstructionNoT.Create(t);
@@ -426,35 +378,21 @@ namespace System.Linq.Expressions.Interpreter
 
         public CastToEnumInstruction(Type t)
         {
-            Debug.Assert(t.GetTypeInfo().IsEnum);
+            Debug.Assert(t.IsEnum);
             _t = t;
         }
 
         public override int Run(InterpretedFrame frame)
         {
             object from = frame.Pop();
-            switch (Convert.GetTypeCode(from))
-            {
-                case TypeCode.Empty:
-                    frame.Push(null);
-                    break;
-                case TypeCode.Int32:
-                case TypeCode.SByte:
-                case TypeCode.Int16:
-                case TypeCode.Int64:
-                case TypeCode.UInt32:
-                case TypeCode.Byte:
-                case TypeCode.UInt16:
-                case TypeCode.UInt64:
-                case TypeCode.Char:
-                case TypeCode.Boolean:
-                    frame.Push(Enum.ToObject(_t, from));
-                    break;
-                default:
-                    throw new InvalidCastException();
-            }
-
-            return +1;
+            Debug.Assert(
+                new[]
+                {
+                    TypeCode.Empty, TypeCode.Int32, TypeCode.SByte, TypeCode.Int16, TypeCode.Int64, TypeCode.UInt32,
+                    TypeCode.Byte, TypeCode.UInt16, TypeCode.UInt64, TypeCode.Char, TypeCode.Boolean
+                }.Contains(Convert.GetTypeCode(from)));
+            frame.Push(from == null ? null : Enum.ToObject(_t, from));
+            return 1;
         }
     }
 
@@ -464,72 +402,55 @@ namespace System.Linq.Expressions.Interpreter
 
         public CastReferenceToEnumInstruction(Type t)
         {
-            Debug.Assert(t.GetTypeInfo().IsEnum);
+            Debug.Assert(t.IsEnum);
             _t = t;
         }
 
         public override int Run(InterpretedFrame frame)
         {
             object from = frame.Pop();
-            if (from == null)
+            Debug.Assert(from != null);
+
+            // If from is neither a T nor a type assignable to T (viz. an T-backed enum)
+            // this will cause an InvalidCastException, which is what this operation should
+            // throw in this case.
+
+            switch (_t.GetTypeCode())
             {
-                frame.Push(null);
-            }
-            else
-            {
-                Type underlying = _t.GetTypeInfo().IsEnum ? Enum.GetUnderlyingType(_t) : _t;
-                // Order checks in order of likelihood. int first as the vast majority of enums
-                // are int-based, then long as that is sometimes used when required for a large set of flags
-                // and so-on.
-                if (underlying == typeof(int))
-                {
-                    // If from is neither an int nor a type assignable to int (viz. an int-backed enum)
-                    // this will cause an InvalidCastException, which is what this operation should
-                    // throw in this case.
+                case TypeCode.Int32:
                     frame.Push(Enum.ToObject(_t, (int)from));
-                }
-                else if (underlying == typeof(long))
-                {
+                    break;
+                case TypeCode.Int64:
                     frame.Push(Enum.ToObject(_t, (long)from));
-                }
-                else if (underlying == typeof(uint))
-                {
+                    break;
+                case TypeCode.UInt32:
                     frame.Push(Enum.ToObject(_t, (uint)from));
-                }
-                else if (underlying == typeof(ulong))
-                {
+                    break;
+                case TypeCode.UInt64:
                     frame.Push(Enum.ToObject(_t, (ulong)from));
-                }
-                else if (underlying == typeof(byte))
-                {
+                    break;
+                case TypeCode.Byte:
                     frame.Push(Enum.ToObject(_t, (byte)from));
-                }
-                else if (underlying == typeof(sbyte))
-                {
+                    break;
+                case TypeCode.SByte:
                     frame.Push(Enum.ToObject(_t, (sbyte)from));
-                }
-                else if (underlying == typeof(short))
-                {
+                    break;
+                case TypeCode.Int16:
                     frame.Push(Enum.ToObject(_t, (short)from));
-                }
-                else if (underlying == typeof(ushort))
-                {
+                    break;
+                case TypeCode.UInt16:
                     frame.Push(Enum.ToObject(_t, (ushort)from));
-                }
-                else if (underlying == typeof(char))
-                {
+                    break;
+                case TypeCode.Char:
                     // Disallowed in C#, but allowed in CIL
                     frame.Push(Enum.ToObject(_t, (char)from));
-                }
-                else if (underlying == typeof(bool))
-                {
+                    break;
+                default:
+                    // Only remaining possible type.
                     // Disallowed in C#, but allowed in CIL
+                    Debug.Assert(_t.GetTypeCode() == TypeCode.Boolean);
                     frame.Push(Enum.ToObject(_t, (bool)from));
-                }
-                else
-                {
-                    throw new InvalidCastException();
-                }
+                    break;
             }
 
             return 1;
@@ -547,8 +468,8 @@ namespace System.Linq.Expressions.Interpreter
             _hoistedVariables = hoistedVariables;
         }
 
-        public override int ConsumedStack => 0;
         public override int ProducedStack => 1;
+
         public override string InstructionName => "Quote";
 
         public override int Run(InterpretedFrame frame)
@@ -559,7 +480,7 @@ namespace System.Linq.Expressions.Interpreter
                 operand = new ExpressionQuoter(_hoistedVariables, frame).Visit(operand);
             }
             frame.Push(operand);
-            return +1;
+            return 1;
         }
 
         // Modifies a quoted Expression instance by changing hoisted variables and
@@ -586,12 +507,19 @@ namespace System.Linq.Expressions.Interpreter
 
             protected internal override Expression VisitLambda<T>(Expression<T> node)
             {
-                if (node.Parameters.Count > 0)
+                if (node.ParameterCount > 0)
                 {
-                    _shadowedVars.Push(new HashSet<ParameterExpression>(node.Parameters));
+                    var parameters = new HashSet<ParameterExpression>();
+
+                    for (int i = 0, n = node.ParameterCount; i < n; i++)
+                    {
+                        parameters.Add(node.GetParameter(i));
+                    }
+
+                    _shadowedVars.Push(parameters);
                 }
                 Expression b = Visit(node.Body);
-                if (node.Parameters.Count > 0)
+                if (node.ParameterCount > 0)
                 {
                     _shadowedVars.Pop();
                 }
@@ -599,7 +527,7 @@ namespace System.Linq.Expressions.Interpreter
                 {
                     return node;
                 }
-                return Expression.Lambda<T>(b, node.Name, node.TailCall, node.Parameters);
+                return node.Rewrite(b, parameters: null);
             }
 
             protected internal override Expression VisitBlock(BlockExpression node)
@@ -645,7 +573,7 @@ namespace System.Linq.Expressions.Interpreter
                 var boxes = new List<IStrongBox>();
                 var vars = new List<ParameterExpression>();
                 var indexes = new int[count];
-                for (int i = 0; i < count; i++)
+                for (int i = 0; i < indexes.Length; i++)
                 {
                     IStrongBox box = GetBox(node.Variables[i]);
                     if (box == null)

@@ -14,7 +14,7 @@ namespace System.Linq.Expressions
         /// <param name="node">The expression to visit.</param>
         /// <returns>The modified expression, if it or any subexpression was modified;
         /// otherwise, returns the original expression.</returns>
-        protected internal virtual Expression VisitDynamic(DynamicExpression node)
+        protected internal override Expression VisitDynamic(DynamicExpression node)
         {
             Expression[] a = ExpressionVisitorUtils.VisitArguments(this, node);
             if (a == null)

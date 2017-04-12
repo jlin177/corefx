@@ -29,7 +29,7 @@ namespace System.Linq.Expressions
         public sealed override Type Type => NewExpression.Type;
 
         /// <summary>
-        /// Gets a value that indicates whether the expression tree node can be reduced. 
+        /// Gets a value that indicates whether the expression tree node can be reduced.
         /// </summary>
         public override bool CanReduce => true;
 
@@ -57,9 +57,9 @@ namespace System.Linq.Expressions
         }
 
         /// <summary>
-        /// Reduces the <see cref="MemberInitExpression"/> to a simpler expression. 
+        /// Reduces the <see cref="MemberInitExpression"/> to a simpler expression.
         /// If CanReduce returns true, this should return a valid expression.
-        /// This method is allowed to return another node which itself 
+        /// This method is allowed to return another node which itself
         /// must be reduced.
         /// </summary>
         /// <returns>The reduced expression.</returns>
@@ -68,33 +68,37 @@ namespace System.Linq.Expressions
             return ReduceMemberInit(NewExpression, Bindings, keepOnStack: true);
         }
 
-        internal static Expression ReduceMemberInit(Expression objExpression, ReadOnlyCollection<MemberBinding> bindings, bool keepOnStack)
+        private static Expression ReduceMemberInit(
+            Expression objExpression, ReadOnlyCollection<MemberBinding> bindings, bool keepOnStack)
         {
-            ParameterExpression objVar = Expression.Variable(objExpression.Type, name: null);
+            ParameterExpression objVar = Variable(objExpression.Type);
             int count = bindings.Count;
-            var block = new Expression[count + 2];
-            block[0] = Expression.Assign(objVar, objExpression);
+            Expression[] block = new Expression[count + 2];
+            block[0] = Assign(objVar, objExpression);
             for (int i = 0; i < count; i++)
             {
                 block[i + 1] = ReduceMemberBinding(objVar, bindings[i]);
             }
-            block[count + 1] = keepOnStack ? (Expression)objVar : Expression.Empty();
-            return Expression.Block(new TrueReadOnlyCollection<Expression>(block));
+
+            block[count + 1] = keepOnStack ? (Expression)objVar : Utils.Empty;
+            return Block(new[] {objVar}, block);
         }
 
-        internal static Expression ReduceListInit(Expression listExpression, ReadOnlyCollection<ElementInit> initializers, bool keepOnStack)
+        internal static Expression ReduceListInit(
+            Expression listExpression, ReadOnlyCollection<ElementInit> initializers, bool keepOnStack)
         {
-            ParameterExpression listVar = Expression.Variable(listExpression.Type, name: null);
+            ParameterExpression listVar = Variable(listExpression.Type);
             int count = initializers.Count;
-            var block = new Expression[count + 2];
-            block[0] = Expression.Assign(listVar, listExpression);
+            Expression[] block = new Expression[count + 2];
+            block[0] = Assign(listVar, listExpression);
             for (int i = 0; i < count; i++)
             {
                 ElementInit element = initializers[i];
-                block[i + 1] = Expression.Call(listVar, element.AddMethod, element.Arguments);
+                block[i + 1] = Call(listVar, element.AddMethod, element.Arguments);
             }
-            block[count + 1] = keepOnStack ? (Expression)listVar : Expression.Empty();
-            return Expression.Block(new TrueReadOnlyCollection<Expression>(block));
+
+            block[count + 1] = keepOnStack ? (Expression)listVar : Utils.Empty;
+            return Block(new[] {listVar}, block);
         }
 
         internal static Expression ReduceMemberBinding(ParameterExpression objVar, MemberBinding binding)
@@ -122,10 +126,14 @@ namespace System.Linq.Expressions
         /// <returns>This expression if no children changed, or an expression with the updated children.</returns>
         public MemberInitExpression Update(NewExpression newExpression, IEnumerable<MemberBinding> bindings)
         {
-            if (newExpression == NewExpression && bindings == Bindings)
+            if (newExpression == NewExpression & bindings != null)
             {
-                return this;
+                if (ExpressionUtils.SameElements(ref bindings, Bindings))
+                {
+                    return this;
+                }
             }
+
             return Expression.MemberInit(newExpression, bindings);
         }
     }

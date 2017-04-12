@@ -22,8 +22,8 @@ namespace System.Net.Internals
 #endif
     class SocketAddress
     {
-        internal readonly static int IPv6AddressSize = SocketAddressPal.IPv6AddressSize;
-        internal readonly static int IPv4AddressSize = SocketAddressPal.IPv4AddressSize;
+        internal static readonly int IPv6AddressSize = SocketAddressPal.IPv6AddressSize;
+        internal static readonly int IPv4AddressSize = SocketAddressPal.IPv4AddressSize;
 
         internal int InternalSize;
         internal byte[] Buffer;
@@ -107,15 +107,9 @@ namespace System.Net.Internals
             }
             else
             {
-#if SYSTEM_NET_PRIMITIVES_DLL
-#pragma warning disable 618
+#pragma warning disable CS0618 // using Obsolete Address API because it's the more efficient option in this case
                 uint address = unchecked((uint)ipAddress.Address);
-#pragma warning restore 618
-#else
-                byte[] ipAddressBytes = ipAddress.GetAddressBytes();
-                Debug.Assert(ipAddressBytes.Length == 4);
-                uint address = ipAddressBytes.NetworkBytesToNetworkUInt32(0);
-#endif
+#pragma warning restore CS0618
 
                 Debug.Assert(ipAddress.AddressFamily == AddressFamily.InterNetwork);
                 SocketAddressPal.SetIPv4Address(Buffer, address);

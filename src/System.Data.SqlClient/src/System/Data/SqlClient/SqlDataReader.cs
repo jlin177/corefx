@@ -2,10 +2,6 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
-
-
-//------------------------------------------------------------------------------
-
 using System.Collections;
 using System.Collections.ObjectModel;
 using System.Data.Common;
@@ -70,7 +66,7 @@ namespace System.Data.SqlClient
         private CommandBehavior _commandBehavior;
 
         private static int s_objectTypeCount; // Bid counter
-        private readonly static ReadOnlyCollection<DbColumn> s_emptySchema = new ReadOnlyCollection<DbColumn>(Array.Empty<DbColumn>());
+        private static readonly ReadOnlyCollection<DbColumn> s_emptySchema = new ReadOnlyCollection<DbColumn>(Array.Empty<DbColumn>());
         internal readonly int ObjectID = System.Threading.Interlocked.Increment(ref s_objectTypeCount);
 
         // metadata (no explicit table, use 'Table')
@@ -406,7 +402,7 @@ namespace System.Data.SqlClient
             TdsParserStateObject stateObj = _stateObj;
             if (null != stateObj)
             {
-                stateObj.Cancel(this);
+                stateObj.Cancel(command);
             }
         }
 

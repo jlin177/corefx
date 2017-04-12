@@ -10,7 +10,7 @@ using Xunit;
 
 namespace System.Reflection.Tests
 {
-    public class FieldInfoTests
+    public partial class FieldInfoTests
     {
         [Theory]
         [InlineData(nameof(FieldInfoTests.ConstIntField), 222)]
@@ -521,6 +521,32 @@ namespace System.Reflection.Tests
             public static FI_GenericClass<T> dependField;
             public static FI_GenericClass<T>[] arrayField;
             public static FI_StaticGenericField<T> selfField;
+        }
+
+        struct FieldData
+        {
+            public object field;
+        }
+
+        [Theory]
+        [InlineData(222)]
+        [InlineData("new value")]
+        [InlineData('A')]
+        [InlineData(false)]
+        [InlineData(4.56f)]
+        [InlineData(double.MaxValue)]
+        [InlineData(long.MaxValue)]
+        [InlineData(byte.MaxValue)]
+        [InlineData(null)]
+        public static void SetValueDirect_GetValueDirectRoundDataTest(object value)
+        {
+            FieldData testField = new FieldData { field = -1 };
+
+            FieldInfo info = testField.GetType().GetField("field");
+            TypedReference reference = __makeref(testField);
+            info.SetValueDirect(reference, value);
+            object result = info.GetValueDirect(reference);
+            Assert.Equal(value, result);
         }
     }
 }

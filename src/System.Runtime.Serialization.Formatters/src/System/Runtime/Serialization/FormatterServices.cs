@@ -67,24 +67,9 @@ namespace System.Runtime.Serialization
             // nop
         }
 
-        // TODO #8133: Fix this to avoid reflection
-        private static readonly Func<Type, object> s_getUninitializedObjectDelegate = (Func<Type, object>)
-            typeof(string).Assembly
-            .GetType("System.Runtime.Serialization.FormatterServices")
-            .GetMethod("GetUninitializedObject", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static)
-            .CreateDelegate(typeof(Func<Type, object>));
+        public static object GetUninitializedObject(Type type) => RuntimeHelpers.GetUninitializedObject(type);
 
-        public static object GetUninitializedObject(Type type)
-        {
-            if (type == null)
-            {
-                throw new ArgumentNullException(nameof(type));
-            }
-
-            return s_getUninitializedObjectDelegate(type);
-        }
-
-        public static object GetSafeUninitializedObject(Type type) => GetUninitializedObject(type);
+        public static object GetSafeUninitializedObject(Type type) => RuntimeHelpers.GetUninitializedObject(type);
 
         internal static void SerializationSetValue(MemberInfo fi, object target, object value)
         {

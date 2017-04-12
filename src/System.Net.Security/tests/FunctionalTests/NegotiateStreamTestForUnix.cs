@@ -46,7 +46,7 @@ namespace System.Net.Security.Tests
                     {
                         Dispose();
                     }
-                    _successfulSetup = false; // TODO: https://github.com/dotnet/corefx/issues/12107
+                    _successfulSetup = false;
                 }
             }
             else
@@ -129,7 +129,7 @@ namespace System.Net.Security.Tests
         private readonly ITestOutputHelper _output;
         private readonly string _emptyTarget = string.Empty;
         private readonly string _testTarget = "TestTarget";
-        private readonly static string _ntlmPassword = TestConfiguration.NtlmPassword;
+        private static readonly string _ntlmPassword = TestConfiguration.NtlmPassword;
 
         private void AssertClientPropertiesForTarget(NegotiateStream client, string target)
         {
@@ -569,7 +569,6 @@ namespace System.Net.Security.Tests
 
      
         [Fact, OuterLoop]
-        [ActiveIssue(7825)]
         [PlatformSpecific(TestPlatforms.Linux)]
         public void NegotiateStream_StreamToStream_NtlmAuthentication_Fallback_Success()
         {
@@ -660,7 +659,6 @@ namespace System.Net.Security.Tests
         }
 
         [Fact, OuterLoop]
-        [ActiveIssue(7825)]
         [PlatformSpecific(TestPlatforms.Linux)]
         public void NegotiateStream_EchoServer_NTLM_ClientWriteRead_Successive_Sync_Success()
         {
@@ -709,7 +707,6 @@ namespace System.Net.Security.Tests
         }
 
         [Fact, OuterLoop]
-        [ActiveIssue(7825)]
         [PlatformSpecific(TestPlatforms.Linux)]
         public void NegotiateStream_EchoServer_NTLM_ClientWriteRead_Successive_Async_Success()
         {

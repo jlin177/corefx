@@ -17,22 +17,22 @@ internal partial class Interop
 
     public static SafeMemoryMappedFileHandle CreateFileMapping(
             SafeFileHandle hFile,
-            ref mincore.SECURITY_ATTRIBUTES securityAttributes,
+            ref Kernel32.SECURITY_ATTRIBUTES securityAttributes,
             int pageProtection,
             long maximumSize,
             string name)
     {
-        return Interop.mincore.CreateFileMappingFromApp(hFile, ref securityAttributes, pageProtection, maximumSize, name);
+        return Interop.Kernel32.CreateFileMappingFromApp(hFile, ref securityAttributes, pageProtection, maximumSize, name);
     }
 
     public static SafeMemoryMappedFileHandle CreateFileMapping(
             IntPtr hFile,
-            ref mincore.SECURITY_ATTRIBUTES securityAttributes,
+            ref Kernel32.SECURITY_ATTRIBUTES securityAttributes,
             int pageProtection,
             long maximumSize,
             string name)
     {
-        return Interop.mincore.CreateFileMappingFromApp(hFile, ref securityAttributes, pageProtection, maximumSize, name);
+        return Interop.Kernel32.CreateFileMappingFromApp(hFile, ref securityAttributes, pageProtection, maximumSize, name);
     }
 
     public static SafeMemoryMappedViewHandle MapViewOfFile(
@@ -41,7 +41,7 @@ internal partial class Interop
             long fileOffset,
             UIntPtr numberOfBytesToMap)
     {
-        return Interop.mincore.MapViewOfFileFromApp(hFileMappingObject, desiredAccess, fileOffset, numberOfBytesToMap);
+        return Interop.Kernel32.MapViewOfFileFromApp(hFileMappingObject, desiredAccess, fileOffset, numberOfBytesToMap);
     }
     public static SafeMemoryMappedFileHandle OpenFileMapping(
             int desiredAccess,

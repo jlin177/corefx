@@ -79,7 +79,7 @@ namespace System.Security.Principal
                 byte[] sourceName = { (byte)'C', (byte)'L', (byte)'R', (byte)0 };
 
                 TOKEN_SOURCE sourceContext;
-                if (!Interop.SecurityBase.AllocateLocallyUniqueId(out sourceContext.SourceIdentifier))
+                if (!Interop.Advapi32.AllocateLocallyUniqueId(out sourceContext.SourceIdentifier))
                     throw new SecurityException(new Win32Exception().Message);
                 sourceContext.SourceName = new byte[TOKEN_SOURCE.TOKEN_SOURCE_LENGTH];
                 Buffer.BlockCopy(sourceName, 0, sourceContext.SourceName, 0, sourceName.Length);
@@ -106,7 +106,7 @@ namespace System.Security.Principal
                     // and do the marshalling into this buffer by hand.
                     //
                     int authenticationInfoLength = checked(sizeof(KERB_S4U_LOGON) + upnBytes.Length);
-                    using (SafeLocalAllocHandle authenticationInfo = Interop.mincore_obsolete.LocalAlloc(0, new UIntPtr(checked((uint)authenticationInfoLength))))
+                    using (SafeLocalAllocHandle authenticationInfo = Interop.Kernel32.LocalAlloc(0, new UIntPtr(checked((uint)authenticationInfoLength))))
                     {
                         if (authenticationInfo.IsInvalid)
                             throw new OutOfMemoryException();
@@ -125,7 +125,7 @@ namespace System.Security.Principal
                         pKerbS4uLogin->ClientRealm.Buffer = IntPtr.Zero;
 
                         ushort sourceNameLength = checked((ushort)(sourceName.Length));
-                        using (SafeLocalAllocHandle sourceNameBuffer = Interop.mincore_obsolete.LocalAlloc(0, new UIntPtr(sourceNameLength)))
+                        using (SafeLocalAllocHandle sourceNameBuffer = Interop.Kernel32.LocalAlloc(0, new UIntPtr(sourceNameLength)))
                         {
                             if (sourceNameBuffer.IsInvalid)
                                 throw new OutOfMemoryException();
@@ -183,11 +183,12 @@ namespace System.Security.Principal
 
         private static int LookupAuthenticationPackage(SafeLsaHandle lsaHandle, string packageName)
         {
+            Debug.Assert(!string.IsNullOrEmpty(packageName));
             unsafe
             {
                 int packageId;
                 byte[] asciiPackageName = Encoding.ASCII.GetBytes(packageName);
-                fixed (byte* pAsciiPackageName = asciiPackageName)
+                fixed (byte* pAsciiPackageName = &asciiPackageName[0])
                 {
                     LSA_STRING lsaPackageName = new LSA_STRING((IntPtr)pAsciiPackageName, checked((ushort)(asciiPackageName.Length)));
                     int ntStatus = Interop.SspiCli.LsaLookupAuthenticationPackage(lsaHandle, ref lsaPackageName, out packageId);
@@ -220,15 +221,15 @@ namespace System.Security.Principal
             Contract.EndContractBlock();
 
             // Find out if the specified token is a valid.
-            uint dwLength = (uint)Marshal.SizeOf<uint>();
-            bool result = Interop.mincore.GetTokenInformation(userToken, (uint)TokenInformationClass.TokenType,
+            uint dwLength = (uint)sizeof(uint);
+            bool result = Interop.Advapi32.GetTokenInformation(userToken, (uint)TokenInformationClass.TokenType,
                                                           SafeLocalAllocHandle.InvalidHandle, 0, out dwLength);
-            if (Marshal.GetLastWin32Error() == Interop.mincore.Errors.ERROR_INVALID_HANDLE)
+            if (Marshal.GetLastWin32Error() == Interop.Errors.ERROR_INVALID_HANDLE)
                 throw new ArgumentException(SR.Argument_InvalidImpersonationToken);
 
-            if (!Interop.mincore.DuplicateHandle(Interop.mincore.GetCurrentProcess(),
+            if (!Interop.Kernel32.DuplicateHandle(Interop.Kernel32.GetCurrentProcess(),
                                              userToken,
-                                             Interop.mincore.GetCurrentProcess(),
+                                             Interop.Kernel32.GetCurrentProcess(),
                                              ref _safeTokenHandle,
                                              0,
                                              true,
@@ -309,7 +310,7 @@ namespace System.Security.Principal
                     SafeLsaReturnBufferHandle pLogonSessionData = SafeLsaReturnBufferHandle.InvalidHandle;
                     try
                     {
-                        int status = Interop.mincore.LsaGetLogonSessionData(ref authId, ref pLogonSessionData);
+                        int status = Interop.SspiCli.LsaGetLogonSessionData(ref authId, ref pLogonSessionData);
                         if (status < 0) // non-negative numbers indicate success
                             throw GetExceptionFromNtStatus(status);
 
@@ -397,7 +398,7 @@ namespace System.Security.Principal
             {
                 if (til == TokenImpersonationLevel.None)
                 {
-                    if (!Interop.mincore.DuplicateTokenEx(_safeTokenHandle,
+                    if (!Interop.Advapi32.DuplicateTokenEx(_safeTokenHandle,
                                                       (uint)TokenAccessLevels.Query,
                                                       IntPtr.Zero,
                                                       (uint)TokenImpersonationLevel.Identification,
@@ -408,7 +409,7 @@ namespace System.Security.Principal
 
 
                 // CheckTokenMembership will check if the SID is both present and enabled in the access token.
-                if (!Interop.mincore.CheckTokenMembership((til != TokenImpersonationLevel.None ? _safeTokenHandle : token),
+                if (!Interop.Advapi32.CheckTokenMembership((til != TokenImpersonationLevel.None ? _safeTokenHandle : token),
                                                       sid.BinaryForm,
                                                       ref isMember))
                     throw new SecurityException(new Win32Exception().Message);
@@ -657,12 +658,12 @@ namespace System.Security.Principal
                 currentContext,
                 delegate
                 {
-                    if (!Interop.mincore.RevertToSelf())
+                    if (!Interop.Advapi32.RevertToSelf())
                         Environment.FailFast(new Win32Exception().Message);
 
                     s_currentImpersonatedToken.Value = null;
 
-                    if (!token.IsInvalid && !Interop.mincore.ImpersonateLoggedOnUser(token))
+                    if (!token.IsInvalid && !Interop.Advapi32.ImpersonateLoggedOnUser(token))
                         throw new SecurityException(SR.Argument_ImpersonateUser);
 
                     s_currentImpersonatedToken.Value = token;
@@ -677,12 +678,12 @@ namespace System.Security.Principal
             if (!args.ThreadContextChanged)
                 return; // we handle explicit Value property changes elsewhere.
 
-            if (!Interop.mincore.RevertToSelf())
+            if (!Interop.Advapi32.RevertToSelf())
                 Environment.FailFast(new Win32Exception().Message);
 
             if (args.CurrentValue != null && !args.CurrentValue.IsInvalid)
             {
-                if (!Interop.mincore.ImpersonateLoggedOnUser(args.CurrentValue))
+                if (!Interop.Advapi32.ImpersonateLoggedOnUser(args.CurrentValue))
                     Environment.FailFast(new Win32Exception().Message);
             }
         }
@@ -725,7 +726,7 @@ namespace System.Security.Principal
             if ((uint)status == Interop.StatusOptions.STATUS_INSUFFICIENT_RESOURCES || (uint)status == Interop.StatusOptions.STATUS_NO_MEMORY)
                 return new OutOfMemoryException();
 
-            int win32ErrorCode = Interop.mincore.RtlNtStatusToDosError(status);
+            int win32ErrorCode = Interop.NtDll.RtlNtStatusToDosError(status);
             return new SecurityException(new Win32Exception(win32ErrorCode).Message);
         }
         
@@ -734,10 +735,10 @@ namespace System.Security.Principal
             isImpersonating = true;
             SafeAccessTokenHandle safeTokenHandle;
             hr = 0;
-            bool success = Interop.mincore.OpenThreadToken(desiredAccess, WinSecurityContext.Both, out safeTokenHandle);
+            bool success = Interop.Advapi32.OpenThreadToken(desiredAccess, WinSecurityContext.Both, out safeTokenHandle);
             if (!success)
                 hr = Marshal.GetHRForLastWin32Error();
-            if (!success && hr == GetHRForWin32Error(Interop.mincore.Errors.ERROR_NO_TOKEN))
+            if (!success && hr == GetHRForWin32Error(Interop.Errors.ERROR_NO_TOKEN))
             {
                 // No impersonation
                 isImpersonating = false;
@@ -751,7 +752,7 @@ namespace System.Security.Principal
         {
             hr = 0;
             SafeAccessTokenHandle safeTokenHandle;
-            if (!Interop.mincore.OpenProcessToken(Interop.mincore.GetCurrentProcess(), desiredAccess, out safeTokenHandle))
+            if (!Interop.Advapi32.OpenProcessToken(Interop.Kernel32.GetCurrentProcess(), desiredAccess, out safeTokenHandle))
                 hr = GetHRForWin32Error(Marshal.GetLastWin32Error());
             return safeTokenHandle;
         }
@@ -773,44 +774,6 @@ namespace System.Security.Principal
             }
         }
 
-        //
-        // QueryImpersonation used to test if the current thread is impersonated.
-        // This method doesn't return the thread token (WindowsIdentity).
-        // Note GetCurrentInternal can be used to perform the same test, but 
-        // QueryImpersonation is optimized for performance
-        // 
-
-        internal static ImpersonationQueryResult QueryImpersonation()
-        {
-            SafeAccessTokenHandle safeTokenHandle = null;
-            bool success = Interop.mincore.OpenThreadToken(TokenAccessLevels.Query, WinSecurityContext.Thread, out safeTokenHandle);
-
-            if (safeTokenHandle != null)
-            {
-                Debug.Assert(success, "[WindowsIdentity..QueryImpersonation] - success");
-                safeTokenHandle.Dispose();
-                return ImpersonationQueryResult.Impersonated;
-            }
-
-            int lastError = Marshal.GetLastWin32Error();
-
-            if (lastError == Interop.mincore.Errors.ERROR_ACCESS_DENIED)
-            {
-                // thread is impersonated because the thread was there (and we failed to open it).
-                return ImpersonationQueryResult.Impersonated;
-            }
-
-            if (lastError == Interop.mincore.Errors.ERROR_NO_TOKEN)
-            {
-                // definitely not impersonating
-                return ImpersonationQueryResult.NotImpersonated;
-            }
-
-            // Unexpected failure.
-            return ImpersonationQueryResult.Failed;
-        }
-
-
         private static Interop.LUID GetLogonAuthId(SafeAccessTokenHandle safeTokenHandle)
         {
             using (SafeLocalAllocHandle pStatistics = GetTokenInformation(safeTokenHandle, TokenInformationClass.TokenStatistics))
@@ -824,8 +787,8 @@ namespace System.Security.Principal
         private static SafeLocalAllocHandle GetTokenInformation(SafeAccessTokenHandle tokenHandle, TokenInformationClass tokenInformationClass)
         {
             SafeLocalAllocHandle safeLocalAllocHandle = SafeLocalAllocHandle.InvalidHandle;
-            uint dwLength = (uint)Marshal.SizeOf<uint>();
-            bool result = Interop.mincore.GetTokenInformation(tokenHandle,
+            uint dwLength = (uint)sizeof(uint);
+            bool result = Interop.Advapi32.GetTokenInformation(tokenHandle,
                                                           (uint)tokenInformationClass,
                                                           safeLocalAllocHandle,
                                                           0,
@@ -833,18 +796,18 @@ namespace System.Security.Principal
             int dwErrorCode = Marshal.GetLastWin32Error();
             switch (dwErrorCode)
             {
-                case Interop.mincore.Errors.ERROR_BAD_LENGTH:
+                case Interop.Errors.ERROR_BAD_LENGTH:
                 // special case for TokenSessionId. Falling through
-                case Interop.mincore.Errors.ERROR_INSUFFICIENT_BUFFER:
+                case Interop.Errors.ERROR_INSUFFICIENT_BUFFER:
                     // ptrLength is an [In] param to LocalAlloc 
                     UIntPtr ptrLength = new UIntPtr(dwLength);
                     safeLocalAllocHandle.Dispose();
-                    safeLocalAllocHandle = Interop.mincore_obsolete.LocalAlloc(0, ptrLength);
+                    safeLocalAllocHandle = Interop.Kernel32.LocalAlloc(0, ptrLength);
                     if (safeLocalAllocHandle == null || safeLocalAllocHandle.IsInvalid)
                         throw new OutOfMemoryException();
                     safeLocalAllocHandle.Initialize(dwLength);
 
-                    result = Interop.mincore.GetTokenInformation(tokenHandle,
+                    result = Interop.Advapi32.GetTokenInformation(tokenHandle,
                                                              (uint)tokenInformationClass,
                                                              safeLocalAllocHandle,
                                                              dwLength,
@@ -852,7 +815,7 @@ namespace System.Security.Principal
                     if (!result)
                         throw new SecurityException(new Win32Exception().Message);
                     break;
-                case Interop.mincore.Errors.ERROR_INVALID_HANDLE:
+                case Interop.Errors.ERROR_INVALID_HANDLE:
                     throw new ArgumentException(SR.Argument_InvalidImpersonationToken);
                 default:
                     throw new SecurityException(new Win32Exception(dwErrorCode).Message);
@@ -892,29 +855,6 @@ namespace System.Security.Principal
                 throw new ArgumentNullException(nameof(identity));
             }
             return identity._authType;
-        }
-
-        internal IntPtr GetTokenInternal()
-        {
-            return _safeTokenHandle.DangerousGetHandle();
-        }
-
-
-        internal WindowsIdentity(ClaimsIdentity claimsIdentity, IntPtr userToken)
-            : base(claimsIdentity)
-        {
-            if (userToken != IntPtr.Zero && userToken.ToInt64() > 0)
-            {
-                CreateFromToken(userToken);
-            }
-        }
-
-        /// <summary>
-        /// Returns a new instance of the base, used when serializing the WindowsIdentity.
-        /// </summary>
-        internal ClaimsIdentity CloneAsBase()
-        {
-            return base.Clone();
         }
 
         /// <summary>
@@ -1125,13 +1065,6 @@ namespace System.Security.Principal
         Thread = 1, // OpenAsSelf = false
         Process = 2, // OpenAsSelf = true
         Both = 3 // OpenAsSelf = true, then OpenAsSelf = false
-    }
-
-    internal enum ImpersonationQueryResult
-    {
-        Impersonated = 0,    // current thread is impersonated
-        NotImpersonated = 1,    // current thread is not impersonated
-        Failed = 2     // failed to query 
     }
 
     [Serializable]

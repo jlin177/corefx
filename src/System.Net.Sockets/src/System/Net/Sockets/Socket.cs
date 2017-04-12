@@ -2,16 +2,14 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
-using System.Collections.Generic;
 using System.Collections;
-using System.ComponentModel;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Net.Internals;
-using System.Net;
-using System.Runtime.InteropServices;
-using System.Threading.Tasks;
+using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 
 namespace System.Net.Sockets
@@ -66,15 +64,12 @@ namespace System.Net.Sockets
         // Bool marked true if the native socket option IP_PKTINFO or IPV6_PKTINFO has been set.
         private bool _receivingPacketInformation;
 
-        // These members are to cache permission checks.
-        private Internals.SocketAddress _permittedRemoteAddress;
-
         private static object s_internalSyncObject;
         private int _closeTimeout = Socket.DefaultCloseTimeout;
         private int _intCleanedUp; // 0 if not completed, > 0 otherwise.
 
         internal static volatile bool s_initialized;
-        internal static volatile bool s_perfCountersEnabled;
+        internal static readonly bool s_perfCountersEnabled = false; // TODO (#7833): Implement socket perf counters. 
 
         #region Constructors
         public Socket(SocketType socketType, ProtocolType protocolType)
@@ -105,8 +100,6 @@ namespace System.Net.Sockets
             _socketType = socketType;
             _protocolType = protocolType;
 
-            // TODO: Investigate this problematic assertion: Issue #4500.
-            // Debug.Assert(addressFamily != AddressFamily.InterNetworkV6 || !DualMode);
             if (NetEventSource.IsEnabled) NetEventSource.Exit(this);
         }
 
@@ -122,17 +115,12 @@ namespace System.Net.Sockets
         // Called by the class to create a socket to accept an incoming request.
         private Socket(SafeCloseSocket fd)
         {
+            // NOTE: If this ctor is ever made public/protected, this check will need
+            // to be converted into a runtime exception.
+            Debug.Assert(fd != null && !fd.IsInvalid);
+
             if (NetEventSource.IsEnabled) NetEventSource.Enter(this);
             InitializeSockets();
-
-            // NOTE: if this ctor is re-publicized/protected, check
-            // that fd is valid socket handle.
-
-            // This should never happen.
-            if (fd == null || fd.IsInvalid)
-            {
-                throw new ArgumentException(SR.net_InvalidSocketHandle);
-            }
 
             _handle = fd;
 
@@ -191,11 +179,7 @@ namespace System.Net.Sockets
                 // Throw an appropriate SocketException if the native call fails.
                 if (errorCode != SocketError.Success)
                 {
-                    // Update the internal state of this socket according to the error before throwing.
-                    SocketException socketException = new SocketException((int)errorCode);
-                    UpdateStatusAfterSocketError(socketException);
-                    if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                    throw socketException;
+                    UpdateStatusAfterSocketErrorAndThrowException(errorCode);
                 }
 
                 return argp;
@@ -235,11 +219,7 @@ namespace System.Net.Sockets
 
                 if (errorCode != SocketError.Success)
                 {
-                    // Update the internal state of this socket according to the error before throwing.
-                    SocketException socketException = new SocketException((int)errorCode);
-                    UpdateStatusAfterSocketError(socketException);
-                    if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                    throw socketException;
+                    UpdateStatusAfterSocketErrorAndThrowException(errorCode);
                 }
 
                 return _rightEndPoint.Create(socketAddress);
@@ -281,11 +261,7 @@ namespace System.Net.Sockets
 
                     if (errorCode != SocketError.Success)
                     {
-                        // Update the internal state of this socket according to the error before throwing.
-                        SocketException socketException = new SocketException((int)errorCode);
-                        UpdateStatusAfterSocketError(socketException);
-                        if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                        throw socketException;
+                        UpdateStatusAfterSocketErrorAndThrowException(errorCode);
                     }
 
                     try
@@ -305,6 +281,7 @@ namespace System.Net.Sockets
         {
             get
             {
+                _handle.SetExposed();
                 return _handle.DangerousGetHandle();
             }
         }
@@ -340,11 +317,7 @@ namespace System.Net.Sockets
 
                 if (errorCode != SocketError.Success)
                 {
-                    // Update the internal state of this socket according to the error before throwing.
-                    SocketException socketException = new SocketException((int)errorCode);
-                    UpdateStatusAfterSocketError(socketException);
-                    if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                    throw socketException;
+                    UpdateStatusAfterSocketErrorAndThrowException(errorCode);
                 }
 
                 // The native call succeeded, update the user's desired state.
@@ -719,24 +692,13 @@ namespace System.Net.Sockets
             }
 
             if (NetEventSource.IsEnabled) NetEventSource.Info(this, $"localEP:{localEP}");
-            EndPoint endPointSnapshot = localEP;
-            IPEndPoint ipSnapshot = localEP as IPEndPoint;
-
-            // For now security is implemented only on IPEndPoint.
-            // If EndPoint is of any other type, unmanaged code permission is demanded.
-            if (ipSnapshot != null)
-            {
-                // Take a snapshot that will make it immutable and not derived.
-                ipSnapshot = ipSnapshot.Snapshot();
-                endPointSnapshot = RemapIPEndPoint(ipSnapshot);
-
-                // NB: if local port is 0, then winsock will assign some port > 1024,
-                //     which is assumed to be safe.
-            }
 
             // Ask the EndPoint to generate a SocketAddress that we can pass down to native code.
-            Internals.SocketAddress socketAddress = CallSerializeCheckDnsEndPoint(endPointSnapshot);
+            EndPoint endPointSnapshot = localEP;
+            Internals.SocketAddress socketAddress = SnapshotAndSerialize(ref endPointSnapshot);
+
             DoBind(endPointSnapshot, socketAddress);
+
             if (NetEventSource.IsEnabled) NetEventSource.Exit(this);
         }
 
@@ -770,10 +732,7 @@ namespace System.Net.Sockets
             IPEndPoint ipEndPoint = endPointSnapshot as IPEndPoint;
             if (!OSSupportsIPv4 && ipEndPoint != null && ipEndPoint.Address.IsIPv4MappedToIPv6)
             {
-                SocketException socketException = new SocketException((int)SocketError.InvalidArgument);
-                UpdateStatusAfterSocketError(socketException);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                throw socketException;
+                UpdateStatusAfterSocketErrorAndThrowException(SocketError.InvalidArgument);
             }
 
             // This may throw ObjectDisposedException.
@@ -796,11 +755,7 @@ namespace System.Net.Sockets
             // Throw an appropriate SocketException if the native call fails.
             if (errorCode != SocketError.Success)
             {
-                // Update the internal state of this socket according to the error before throwing.
-                SocketException socketException = new SocketException((int)errorCode);
-                UpdateStatusAfterSocketError(socketException);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                throw socketException;
+                UpdateStatusAfterSocketErrorAndThrowException(errorCode);
             }
 
             if (_rightEndPoint == null)
@@ -835,6 +790,7 @@ namespace System.Net.Sockets
             }
 
             ValidateBlockingMode();
+
             if (NetEventSource.IsEnabled)
             {
                 if (NetEventSource.IsEnabled) NetEventSource.Info(this, $"DST:{remoteEP}");
@@ -843,6 +799,8 @@ namespace System.Net.Sockets
             DnsEndPoint dnsEP = remoteEP as DnsEndPoint;
             if (dnsEP != null)
             {
+                ValidateForMultiConnect(isMultiEndpoint: true); // needs to come before CanTryAddressFamily call
+
                 if (dnsEP.AddressFamily != AddressFamily.Unspecified && !CanTryAddressFamily(dnsEP.AddressFamily))
                 {
                     throw new NotSupportedException(SR.net_invalidversion);
@@ -852,9 +810,10 @@ namespace System.Net.Sockets
                 return;
             }
 
-            // This will check the permissions for connect
+            ValidateForMultiConnect(isMultiEndpoint: false);
+
             EndPoint endPointSnapshot = remoteEP;
-            Internals.SocketAddress socketAddress = CheckCacheRemote(ref endPointSnapshot, true);
+            Internals.SocketAddress socketAddress = SnapshotAndSerialize(ref endPointSnapshot);
 
             if (!Blocking)
             {
@@ -882,6 +841,9 @@ namespace System.Net.Sockets
             {
                 throw new ArgumentOutOfRangeException(nameof(port));
             }
+
+            ValidateForMultiConnect(isMultiEndpoint: false); // needs to come before CanTryAddressFamily call
+
             if (!CanTryAddressFamily(address.AddressFamily))
             {
                 throw new NotSupportedException(SR.net_invalidversion);
@@ -912,6 +874,9 @@ namespace System.Net.Sockets
             {
                 throw new NotSupportedException(SR.net_invalidversion);
             }
+
+            // No need to call ValidateForMultiConnect(), as the validation
+            // will be handled by the delegated Connect overloads.
 
             IPAddress parsedAddress;
             if (IPAddress.TryParse(host, out parsedAddress))
@@ -951,9 +916,10 @@ namespace System.Net.Sockets
             {
                 throw new NotSupportedException(SR.net_invalidversion);
             }
-            ThrowIfNotSupportsMultipleConnectAttempts();
 
-            Exception lastex = null;
+            ValidateForMultiConnect(isMultiEndpoint: true); // needs to come before CanTryAddressFamily call
+
+            ExceptionDispatchInfo lastex = null;
             foreach (IPAddress address in addresses)
             {
                 if (CanTryAddressFamily(address.AddressFamily))
@@ -964,21 +930,14 @@ namespace System.Net.Sockets
                         lastex = null;
                         break;
                     }
-                    catch (Exception ex)
+                    catch (Exception ex) when (!ExceptionCheck.IsFatal(ex))
                     {
-                        if (ExceptionCheck.IsFatal(ex))
-                        {
-                            throw;
-                        }
-                        lastex = ex;
+                        lastex = ExceptionDispatchInfo.Capture(ex);
                     }
                 }
             }
 
-            if (lastex != null)
-            {
-                throw lastex;
-            }
+            lastex?.Throw();
 
             // If we're not connected, then we didn't get a valid ipaddress in the list.
             if (!Connected)
@@ -1030,8 +989,6 @@ namespace System.Net.Sockets
 
             if (NetEventSource.IsEnabled) NetEventSource.Info(this, $"backlog:{backlog}");
 
-            // No access permissions are necessary here because the verification is done for Bind.
-
             // This may throw ObjectDisposedException.
             SocketError errorCode = SocketPal.Listen(_handle, backlog);
 
@@ -1049,11 +1006,7 @@ namespace System.Net.Sockets
             // Throw an appropriate SocketException if the native call fails.
             if (errorCode != SocketError.Success)
             {
-                // Update the internal state of this socket according to the error before throwing.
-                SocketException socketException = new SocketException((int)errorCode);
-                UpdateStatusAfterSocketError(socketException);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                throw socketException;
+                UpdateStatusAfterSocketErrorAndThrowException(errorCode);
             }
             _isListening = true;
             if (NetEventSource.IsEnabled) NetEventSource.Exit(this);
@@ -1103,12 +1056,7 @@ namespace System.Net.Sockets
             if (errorCode != SocketError.Success)
             {
                 Debug.Assert(acceptedSocketHandle.IsInvalid);
-
-                // Update the internal state of this socket according to the error before throwing.
-                SocketException socketException = new SocketException((int)errorCode);
-                UpdateStatusAfterSocketError(socketException);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                throw socketException;
+                UpdateStatusAfterSocketErrorAndThrowException(errorCode);
             }
 
             Debug.Assert(!acceptedSocketHandle.IsInvalid);
@@ -1294,6 +1242,45 @@ namespace System.Net.Sockets
             return bytesTransferred;
         }
 
+        public void SendFile(string fileName)
+        {
+            SendFile(fileName, null, null, TransmitFileOptions.UseDefaultWorkerThread);
+        }
+
+        public void SendFile(string fileName, byte[] preBuffer, byte[] postBuffer, TransmitFileOptions flags)
+        {
+            if (NetEventSource.IsEnabled) NetEventSource.Enter(this);
+
+            if (CleanedUp)
+            {
+                throw new ObjectDisposedException(this.GetType().FullName);
+            }
+
+            if (!Connected)
+            {
+                throw new NotSupportedException(SR.net_notconnected);
+            }
+
+            ValidateBlockingMode();
+
+            if (NetEventSource.IsEnabled) NetEventSource.Info(this, $"::SendFile() SRC:{LocalEndPoint} DST:{RemoteEndPoint} fileName:{fileName}");
+
+            SendFileInternal(fileName, preBuffer, postBuffer, flags);
+
+#if TRACE_VERBOSE
+            if (NetEventSource.IsEnabled)
+            {
+                try
+                {
+                    NetEventSource.Info(this, $"::SendFile() SRC:{LocalEndPoint} DST:{RemoteEndPoint} UnsafeNclNativeMethods.OSSOCK.TransmitFile returns errorCode:{errorCode}");
+                }
+                catch (ObjectDisposedException) { }
+            }
+#endif
+
+            if (NetEventSource.IsEnabled) NetEventSource.Exit(this);
+        }
+
         // Sends data to a specific end point, starting at the indicated location in the buffer.
         public int SendTo(byte[] buffer, int offset, int size, SocketFlags socketFlags, EndPoint remoteEP)
         {
@@ -1324,9 +1311,8 @@ namespace System.Net.Sockets
             ValidateBlockingMode();
             if (NetEventSource.IsEnabled) NetEventSource.Info(this, $"SRC:{LocalEndPoint} size:{size} remoteEP:{remoteEP}");
 
-            // CheckCacheRemote will check ConnectPermission for remoteEP.
             EndPoint endPointSnapshot = remoteEP;
-            Internals.SocketAddress socketAddress = CheckCacheRemote(ref endPointSnapshot, false);
+            Internals.SocketAddress socketAddress = SnapshotAndSerialize(ref endPointSnapshot);
 
             // This can throw ObjectDisposedException.
             int bytesTransferred;
@@ -1335,11 +1321,7 @@ namespace System.Net.Sockets
             // Throw an appropriate SocketException if the native call fails.
             if (errorCode != SocketError.Success)
             {
-                // Update the internal state of this socket according to the error before throwing.
-                SocketException socketException = new SocketException((int)errorCode);
-                UpdateStatusAfterSocketError(socketException);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                throw socketException;
+                UpdateStatusAfterSocketErrorAndThrowException(errorCode);
             }
 
             if (_rightEndPoint == null)
@@ -1632,11 +1614,7 @@ namespace System.Net.Sockets
             // Throw an appropriate SocketException if the native call fails.
             if (errorCode != SocketError.Success && errorCode != SocketError.MessageSize)
             {
-                // Update the internal state of this socket according to the error before throwing.
-                SocketException socketException = new SocketException((int)errorCode);
-                UpdateStatusAfterSocketError(socketException);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                throw socketException;
+                UpdateStatusAfterSocketErrorAndThrowException(errorCode);
             }
 
             if (!socketAddressOriginal.Equals(receiveAddress))
@@ -1806,11 +1784,7 @@ namespace System.Net.Sockets
             // Throw an appropriate SocketException if the native call fails.
             if (errorCode != SocketError.Success)
             {
-                // Update the internal state of this socket according to the error before throwing.
-                SocketException socketException = new SocketException((int)errorCode);
-                UpdateStatusAfterSocketError(socketException);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                throw socketException;
+                UpdateStatusAfterSocketErrorAndThrowException(errorCode);
             }
 
             return realOptionLength;
@@ -1828,7 +1802,6 @@ namespace System.Net.Sockets
             {
                 throw new ObjectDisposedException(this.GetType().FullName);
             }
-            CheckSetOptionPermissions(optionLevel, optionName);
             if (NetEventSource.IsEnabled) NetEventSource.Info(this, $"optionLevel:{optionLevel} optionName:{optionName} optionValue:{optionValue}");
 
             SetSocketOption(optionLevel, optionName, optionValue, false);
@@ -1841,8 +1814,6 @@ namespace System.Net.Sockets
                 throw new ObjectDisposedException(this.GetType().FullName);
             }
 
-            CheckSetOptionPermissions(optionLevel, optionName);
-
             if (NetEventSource.IsEnabled) NetEventSource.Info(this, $"optionLevel:{optionLevel} optionName:{optionName} optionValue:{optionValue}");
 
             // This can throw ObjectDisposedException.
@@ -1853,11 +1824,7 @@ namespace System.Net.Sockets
             // Throw an appropriate SocketException if the native call fails.
             if (errorCode != SocketError.Success)
             {
-                // Update the internal state of this socket according to the error before throwing.
-                SocketException socketException = new SocketException((int)errorCode);
-                UpdateStatusAfterSocketError(socketException);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                throw socketException;
+                UpdateStatusAfterSocketErrorAndThrowException(errorCode);
             }
         }
 
@@ -1880,8 +1847,6 @@ namespace System.Net.Sockets
             {
                 throw new ArgumentNullException(nameof(optionValue));
             }
-
-            CheckSetOptionPermissions(optionLevel, optionName);
 
             if (NetEventSource.IsEnabled) NetEventSource.Info(this, $"optionLevel:{optionLevel} optionName:{optionName} optionValue:{optionValue}");
 
@@ -1958,11 +1923,7 @@ namespace System.Net.Sockets
             // Throw an appropriate SocketException if the native call fails.
             if (errorCode != SocketError.Success)
             {
-                // Update the internal state of this socket according to the error before throwing.
-                SocketException socketException = new SocketException((int)errorCode);
-                UpdateStatusAfterSocketError(socketException);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                throw socketException;
+                UpdateStatusAfterSocketErrorAndThrowException(errorCode);
             }
 
             return optionValue;
@@ -1990,11 +1951,7 @@ namespace System.Net.Sockets
             // Throw an appropriate SocketException if the native call fails.
             if (errorCode != SocketError.Success)
             {
-                // Update the internal state of this socket according to the error before throwing.
-                SocketException socketException = new SocketException((int)errorCode);
-                UpdateStatusAfterSocketError(socketException);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                throw socketException;
+                UpdateStatusAfterSocketErrorAndThrowException(errorCode);
             }
         }
 
@@ -2021,11 +1978,7 @@ namespace System.Net.Sockets
             // Throw an appropriate SocketException if the native call fails.
             if (errorCode != SocketError.Success)
             {
-                // Update the internal state of this socket according to the error before throwing.
-                SocketException socketException = new SocketException((int)errorCode);
-                UpdateStatusAfterSocketError(socketException);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                throw socketException;
+                UpdateStatusAfterSocketErrorAndThrowException(errorCode);
             }
 
             if (optionLength != realOptionLength)
@@ -2074,11 +2027,7 @@ namespace System.Net.Sockets
             // Throw an appropriate SocketException if the native call fails.
             if (errorCode != SocketError.Success)
             {
-                // Update the internal state of this socket according to the error before throwing.
-                SocketException socketException = new SocketException((int)errorCode);
-                UpdateStatusAfterSocketError(socketException);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                throw socketException;
+                UpdateStatusAfterSocketErrorAndThrowException(errorCode);
             }
 
             return status;
@@ -2117,12 +2066,7 @@ namespace System.Net.Sockets
 
         // Routine Description:
         // 
-        //    BeginConnect - Does a async winsock connect, by calling
-        //    WSAEventSelect to enable Connect Events to signal an event and
-        //    wake up a callback which invokes a callback.
-        // 
-        //     So note: This routine may go pending at which time,
-        //     but any case the callback Delegate will be called upon completion
+        //    BeginConnect - Does an async connect.
         // 
         // Arguments:
         // 
@@ -2152,9 +2096,12 @@ namespace System.Net.Sockets
                 throw new InvalidOperationException(SR.net_sockets_mustnotlisten);
             }
 
+
             DnsEndPoint dnsEP = remoteEP as DnsEndPoint;
             if (dnsEP != null)
             {
+                ValidateForMultiConnect(isMultiEndpoint: true); // needs to come before CanTryAddressFamily call
+
                 if (dnsEP.AddressFamily != AddressFamily.Unspecified && !CanTryAddressFamily(dnsEP.AddressFamily))
                 {
                     throw new NotSupportedException(SR.net_invalidversion);
@@ -2163,6 +2110,7 @@ namespace System.Net.Sockets
                 return BeginConnect(dnsEP.Host, dnsEP.Port, callback, state);
             }
 
+            ValidateForMultiConnect(isMultiEndpoint: false);
             return UnsafeBeginConnect(remoteEP, callback, state, flowContext:true);
         }
 
@@ -2236,13 +2184,13 @@ namespace System.Net.Sockets
                 return r;
             }
 
-            ThrowIfNotSupportsMultipleConnectAttempts();
+            ValidateForMultiConnect(isMultiEndpoint: true);
 
             // Here, want to flow the context.  No need to lock.
             MultipleAddressConnectAsyncResult result = new MultipleAddressConnectAsyncResult(null, port, this, state, requestCallback);
             result.StartPostingAsyncOp(false);
 
-            IAsyncResult dnsResult = DnsAPMExtensions.BeginGetHostAddresses(host, new AsyncCallback(DnsCallback), result);
+            IAsyncResult dnsResult = Dns.BeginGetHostAddresses(host, new AsyncCallback(DnsCallback), result);
             if (dnsResult.CompletedSynchronously)
             {
                 if (DoDnsCallback(dnsResult, result))
@@ -2256,14 +2204,6 @@ namespace System.Net.Sockets
 
             if (NetEventSource.IsEnabled) NetEventSource.Exit(this, result);
             return result;
-        }
-
-        private static void ThrowIfNotSupportsMultipleConnectAttempts()
-        {
-            if (!SocketPal.SupportsMultipleConnectAttempts)
-            {
-                throw new PlatformNotSupportedException(SR.net_sockets_connect_multiaddress_notsupported);
-            }
         }
 
         public IAsyncResult BeginConnect(IPAddress address, int port, AsyncCallback requestCallback, object state)
@@ -2282,6 +2222,9 @@ namespace System.Net.Sockets
             {
                 throw new ArgumentOutOfRangeException(nameof(port));
             }
+
+            ValidateForMultiConnect(isMultiEndpoint: false); // needs to be called before CanTryAddressFamily
+
             if (!CanTryAddressFamily(address.AddressFamily))
             {
                 throw new NotSupportedException(SR.net_invalidversion);
@@ -2321,7 +2264,8 @@ namespace System.Net.Sockets
             {
                 throw new InvalidOperationException(SR.net_sockets_mustnotlisten);
             }
-            ThrowIfNotSupportsMultipleConnectAttempts();
+
+            ValidateForMultiConnect(isMultiEndpoint: true);
 
             // Set up the result to capture the context.  No need for a lock.
             MultipleAddressConnectAsyncResult result = new MultipleAddressConnectAsyncResult(addresses, port, this, state, requestCallback);
@@ -2375,17 +2319,10 @@ namespace System.Net.Sockets
 
             if (NetEventSource.IsEnabled) NetEventSource.Info(this, $"UnsafeNclNativeMethods.OSSOCK.DisConnectEx returns:{errorCode}");
 
-            // if the asynchronous native call fails synchronously
-            // we'll throw a SocketException
-            errorCode = asyncResult.CheckAsyncCallOverlappedResult(errorCode);
-
-            if (errorCode != SocketError.Success)
+            // If the call failed, update our status and throw
+            if (!CheckErrorAndUpdateStatus(errorCode))
             {
-                // update our internal state after this socket error and throw
-                SocketException socketException = new SocketException((int)errorCode);
-                UpdateStatusAfterSocketError(socketException);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                throw socketException;
+                throw new SocketException((int)errorCode);
             }
 
             if (NetEventSource.IsEnabled) NetEventSource.Exit(this, asyncResult);
@@ -2408,11 +2345,7 @@ namespace System.Net.Sockets
 
             if (errorCode != SocketError.Success)
             {
-                // update our internal state after this socket error and throw
-                SocketException socketException = new SocketException((int)errorCode);
-                UpdateStatusAfterSocketError(socketException);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                throw socketException;
+                UpdateStatusAfterSocketErrorAndThrowException(errorCode);
             }
 
             SetToDisconnected();
@@ -2492,19 +2425,21 @@ namespace System.Net.Sockets
 
             if (NetEventSource.IsEnabled) NetEventSource.Info(this, $"asyncResult:{asyncResult}");
 
-            if (castedAsyncResult.Result is Exception)
+            Exception ex = castedAsyncResult.Result as Exception;
+            if (ex != null || (SocketError)castedAsyncResult.ErrorCode != SocketError.Success)
             {
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, castedAsyncResult.Result);
-                throw (Exception)castedAsyncResult.Result;
+                if (ex == null)
+                {
+                    // Update the internal state of this socket according to the error before throwing.
+                    SocketException se = SocketExceptionFactory.CreateSocketException(castedAsyncResult.ErrorCode, remoteEndPoint);
+                    UpdateStatusAfterSocketError(se);
+                    ex = se;
+                }
+
+                if (NetEventSource.IsEnabled) NetEventSource.Error(this, ex);
+                ExceptionDispatchInfo.Throw(ex);
             }
-            if ((SocketError)castedAsyncResult.ErrorCode != SocketError.Success)
-            {
-                // Update the internal state of this socket according to the error before throwing.
-                SocketException socketException = SocketExceptionFactory.CreateSocketException(castedAsyncResult.ErrorCode, remoteEndPoint);
-                UpdateStatusAfterSocketError(socketException);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                throw socketException;
-            }
+
             if (NetEventSource.IsEnabled)
             {
                 NetEventSource.Connected(this, LocalEndPoint, RemoteEndPoint);
@@ -2520,15 +2455,10 @@ namespace System.Net.Sockets
                 throw new ObjectDisposedException(this.GetType().FullName);
             }
 
-#if FEATURE_PAL
-            throw new PlatformNotSupportedException(SR.GetString(SR.WinNTRequired));
-#endif // FEATURE_PAL
-
             if (asyncResult == null)
             {
                 throw new ArgumentNullException(nameof(asyncResult));
             }
-
 
             //get async result and check for errors
             LazyAsyncResult castedAsyncResult = asyncResult as LazyAsyncResult;
@@ -2541,7 +2471,7 @@ namespace System.Net.Sockets
                 throw new InvalidOperationException(SR.Format(SR.net_io_invalidendcall, nameof(EndDisconnect)));
             }
 
-            //wait for completion if it hasn't occured
+            //wait for completion if it hasn't occurred
             castedAsyncResult.InternalWaitForCompletion();
             castedAsyncResult.EndCalled = true;
 
@@ -2553,13 +2483,7 @@ namespace System.Net.Sockets
             //
             if ((SocketError)castedAsyncResult.ErrorCode != SocketError.Success)
             {
-                //
-                // update our internal state after this socket error and throw
-                //
-                SocketException socketException = new SocketException(castedAsyncResult.ErrorCode);
-                UpdateStatusAfterSocketError(socketException);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                throw socketException;
+                UpdateStatusAfterSocketErrorAndThrowException((SocketError)castedAsyncResult.ErrorCode);
             }
 
             if (NetEventSource.IsEnabled) NetEventSource.Exit(this);
@@ -2637,57 +2561,20 @@ namespace System.Net.Sockets
             return asyncResult;
         }
 
-        internal IAsyncResult UnsafeBeginSend(byte[] buffer, int offset, int size, SocketFlags socketFlags, AsyncCallback callback, object state)
-        {
-            if (NetEventSource.IsEnabled) NetEventSource.Enter(this);
-            if (CleanedUp)
-            {
-                throw new ObjectDisposedException(this.GetType().FullName);
-            }
-
-            // No need to flow the context.
-            OverlappedAsyncResult asyncResult = new OverlappedAsyncResult(this, state, callback);
-
-            SocketError errorCode = DoBeginSend(buffer, offset, size, socketFlags, asyncResult);
-            if (errorCode != SocketError.Success && errorCode != SocketError.IOPending)
-            {
-                throw new SocketException((int)errorCode);
-            }
-
-            if (NetEventSource.IsEnabled) NetEventSource.Exit(this, asyncResult);
-            return asyncResult;
-        }
-
         private SocketError DoBeginSend(byte[] buffer, int offset, int size, SocketFlags socketFlags, OverlappedAsyncResult asyncResult)
         {
             if (NetEventSource.IsEnabled) NetEventSource.Info(this, $"SRC:{LocalEndPoint} DST:{RemoteEndPoint} size:{size}");
 
-            // Guarantee to call CheckAsyncCallOverlappedResult if we call SetUnamangedStructures with a cache in order to
-            // avoid a Socket leak in case of error.
-            SocketError errorCode = SocketError.SocketError;
-            try
-            {
-                // Get the Send going.
-                if (NetEventSource.IsEnabled) NetEventSource.Info(this, $"asyncResult:{asyncResult} size:{size}");
+            // Get the Send going.
+            if (NetEventSource.IsEnabled) NetEventSource.Info(this, $"asyncResult:{asyncResult} size:{size}");
 
-                errorCode = SocketPal.SendAsync(_handle, buffer, offset, size, socketFlags, asyncResult);
+            SocketError errorCode = SocketPal.SendAsync(_handle, buffer, offset, size, socketFlags, asyncResult);
 
-                if (NetEventSource.IsEnabled) NetEventSource.Info(this, $"Interop.Winsock.WSASend returns:{errorCode} size:{size} returning AsyncResult:{asyncResult}");
-            }
-            finally
-            {
-                errorCode = asyncResult.CheckAsyncCallOverlappedResult(errorCode);
-            }
+            if (NetEventSource.IsEnabled) NetEventSource.Info(this, $"Interop.Winsock.WSASend returns:{errorCode} size:{size} returning AsyncResult:{asyncResult}");
 
-            // Throw an appropriate SocketException if the native call fails synchronously.
-            if (errorCode != SocketError.Success)
-            {
-                UpdateStatusAfterSocketError(errorCode);
-                if (NetEventSource.IsEnabled)
-                {
-                    if (NetEventSource.IsEnabled) NetEventSource.Error(this, new SocketException((int)errorCode));
-                }
-            }
+            // If the call failed, update our status 
+            CheckErrorAndUpdateStatus(errorCode);
+
             return errorCode;
         }
 
@@ -2744,29 +2631,15 @@ namespace System.Net.Sockets
         private SocketError DoBeginSend(IList<ArraySegment<byte>> buffers, SocketFlags socketFlags, OverlappedAsyncResult asyncResult)
         {
             if (NetEventSource.IsEnabled) NetEventSource.Info(this, $"SRC:{LocalEndPoint} DST:{RemoteEndPoint} buffers:{buffers}");
+            if (NetEventSource.IsEnabled) NetEventSource.Info(this, $"asyncResult:{asyncResult}");
 
-            // Guarantee to call CheckAsyncCallOverlappedResult if we call SetUnamangedStructures with a cache in order to
-            // avoid a Socket leak in case of error.
-            SocketError errorCode = SocketError.SocketError;
-            try
-            {
-                if (NetEventSource.IsEnabled) NetEventSource.Info(this, $"asyncResult:{asyncResult}");
+            SocketError errorCode = SocketPal.SendAsync(_handle, buffers, socketFlags, asyncResult);
 
-                errorCode = SocketPal.SendAsync(_handle, buffers, socketFlags, asyncResult);
+            if (NetEventSource.IsEnabled) NetEventSource.Info(this, $"Interop.Winsock.WSASend returns:{errorCode} returning AsyncResult:{asyncResult}");
 
-                if (NetEventSource.IsEnabled) NetEventSource.Info(this, $"Interop.Winsock.WSASend returns:{errorCode} returning AsyncResult:{asyncResult}");
-            }
-            finally
-            {
-                errorCode = asyncResult.CheckAsyncCallOverlappedResult(errorCode);
-            }
+            // If the call failed, update our status 
+            CheckErrorAndUpdateStatus(errorCode);
 
-            // Throw an appropriate SocketException if the native call fails synchronously.
-            if (errorCode != SocketError.Success)
-            {
-                UpdateStatusAfterSocketError(errorCode);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, new SocketException((int)errorCode));
-            }
             return errorCode;
         }
 
@@ -2852,6 +2725,52 @@ namespace System.Net.Sockets
             return bytesTransferred;
         }
 
+        public IAsyncResult BeginSendFile(string fileName, AsyncCallback callback, object state)
+        {
+            return BeginSendFile(fileName, null, null, TransmitFileOptions.UseDefaultWorkerThread, callback, state);
+        }
+
+        public IAsyncResult BeginSendFile(string fileName, byte[] preBuffer, byte[] postBuffer, TransmitFileOptions flags, AsyncCallback callback, object state)
+        {
+            if (NetEventSource.IsEnabled) NetEventSource.Enter(this);
+
+            if (CleanedUp)
+            {
+                throw new ObjectDisposedException(this.GetType().FullName);
+            }
+
+            if (!Connected)
+            {
+                throw new NotSupportedException(SR.net_notconnected);
+            }
+
+            if (NetEventSource.IsEnabled) NetEventSource.Info(this, $"::DoBeginSendFile() SRC:{LocalEndPoint} DST:{RemoteEndPoint} fileName:{fileName}");
+
+            IAsyncResult asyncResult = BeginSendFileInternal(fileName, preBuffer, postBuffer, flags, callback, state);
+
+            if (NetEventSource.IsEnabled) NetEventSource.Exit(this, asyncResult);
+            return asyncResult;
+        }
+
+        public void EndSendFile(IAsyncResult asyncResult)
+        {
+            if (NetEventSource.IsEnabled) NetEventSource.Enter(this, asyncResult);
+
+            if (CleanedUp)
+            {
+                throw new ObjectDisposedException(this.GetType().FullName);
+            }
+
+            if (asyncResult == null)
+            {
+                throw new ArgumentNullException(nameof(asyncResult));
+            }
+
+            EndSendFileInternal(asyncResult);
+
+            if (NetEventSource.IsEnabled) NetEventSource.Exit(this);
+        }
+
         // Routine Description:
         // 
         //    BeginSendTo - Async implementation of SendTo,
@@ -2898,9 +2817,8 @@ namespace System.Net.Sockets
                 throw new ArgumentOutOfRangeException(nameof(size));
             }
 
-            // This will check the permissions for connect.
             EndPoint endPointSnapshot = remoteEP;
-            Internals.SocketAddress socketAddress = CheckCacheRemote(ref endPointSnapshot, false);
+            Internals.SocketAddress socketAddress = SnapshotAndSerialize(ref endPointSnapshot);
 
             // Set up the async result and indicate to flow the context.
             OverlappedAsyncResult asyncResult = new OverlappedAsyncResult(this, state, callback);
@@ -2941,20 +2859,14 @@ namespace System.Net.Sockets
                 _rightEndPoint = oldEndPoint;
                 throw;
             }
-            finally
-            {
-                errorCode = asyncResult.CheckAsyncCallOverlappedResult(errorCode);
-            }
 
             // Throw an appropriate SocketException if the native call fails synchronously.
-            if (errorCode != SocketError.Success)
+            if (!CheckErrorAndUpdateStatus(errorCode))
             {
                 // Update the internal state of this socket according to the error before throwing.
                 _rightEndPoint = oldEndPoint;
-                SocketException socketException = new SocketException((int)errorCode);
-                UpdateStatusAfterSocketError(socketException);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                throw socketException;
+
+                throw new SocketException((int)errorCode);
             }
 
             if (NetEventSource.IsEnabled) NetEventSource.Info(this, $"size:{size} returning AsyncResult:{asyncResult}");
@@ -3017,11 +2929,7 @@ namespace System.Net.Sockets
             // Throw an appropriate SocketException if the native call failed asynchronously.
             if ((SocketError)castedAsyncResult.ErrorCode != SocketError.Success)
             {
-                // Update the internal state of this socket according to the error before throwing.
-                SocketException socketException = new SocketException(castedAsyncResult.ErrorCode);
-                UpdateStatusAfterSocketError(socketException);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                throw socketException;
+                UpdateStatusAfterSocketErrorAndThrowException((SocketError)castedAsyncResult.ErrorCode);
             }
 
             if (NetEventSource.IsEnabled) NetEventSource.Exit(this, bytesTransferred);
@@ -3106,23 +3014,6 @@ namespace System.Net.Sockets
             return asyncResult;
         }
 
-        internal IAsyncResult UnsafeBeginReceive(byte[] buffer, int offset, int size, SocketFlags socketFlags, AsyncCallback callback, object state)
-        {
-            if (NetEventSource.IsEnabled) NetEventSource.Enter(this);
-
-            if (CleanedUp)
-            {
-                throw new ObjectDisposedException(this.GetType().FullName);
-            }
-
-            // No need to flow the context.
-            OverlappedAsyncResult asyncResult = new OverlappedAsyncResult(this, state, callback);
-            DoBeginReceive(buffer, offset, size, socketFlags, asyncResult);
-
-            if (NetEventSource.IsEnabled) NetEventSource.Exit(this, asyncResult);
-            return asyncResult;
-        }
-
         private SocketError DoBeginReceive(byte[] buffer, int offset, int size, SocketFlags socketFlags, OverlappedAsyncResult asyncResult)
         {
             if (NetEventSource.IsEnabled) NetEventSource.Info(this, $"size:{size}");
@@ -3130,40 +3021,18 @@ namespace System.Net.Sockets
 #if DEBUG
             IntPtr lastHandle = _handle.DangerousGetHandle();
 #endif
-            // Guarantee to call CheckAsyncCallOverlappedResult if we call SetUnamangedStructures with a cache in order to
-            // avoid a Socket leak in case of error.
-            SocketError errorCode = SocketError.SocketError;
-            try
-            {
-                errorCode = SocketPal.ReceiveAsync(_handle, buffer, offset, size, socketFlags, asyncResult);
+            SocketError errorCode = SocketPal.ReceiveAsync(_handle, buffer, offset, size, socketFlags, asyncResult);
 
-                if (NetEventSource.IsEnabled) NetEventSource.Info(this, $"Interop.Winsock.WSARecv returns:{errorCode} returning AsyncResult:{asyncResult}");
-            }
-            finally
-            {
-                errorCode = asyncResult.CheckAsyncCallOverlappedResult(errorCode);
-            }
+            if (NetEventSource.IsEnabled) NetEventSource.Info(this, $"Interop.Winsock.WSARecv returns:{errorCode} returning AsyncResult:{asyncResult}");
 
-            // Throw an appropriate SocketException if the native call fails synchronously.
-            if (errorCode != SocketError.Success)
+            if (CheckErrorAndUpdateStatus(errorCode))
             {
-                // TODO: https://github.com/dotnet/corefx/issues/5426
-                // NetEventSource.Fail(this, "GetLastWin32Error() returned zero.");
-
-                // Update the internal state of this socket according to the error before throwing.
-                UpdateStatusAfterSocketError(errorCode);
-                var socketException = new SocketException((int)errorCode);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                asyncResult.InvokeCallback(new SocketException((int)errorCode));
-            }
 #if DEBUG
-            else
-            {
                 _lastReceiveHandle = lastHandle;
                 _lastReceiveThread = Environment.CurrentManagedThreadId;
                 _lastReceiveTick = Environment.TickCount;
-            }
 #endif
+            }
 
             return errorCode;
         }
@@ -3226,28 +3095,12 @@ namespace System.Net.Sockets
 #if DEBUG
             IntPtr lastHandle = _handle.DangerousGetHandle();
 #endif
-            // Guarantee to call CheckAsyncCallOverlappedResult if we call SetUnamangedStructures with a cache in order to
-            // avoid a Socket leak in case of error.
-            SocketError errorCode = SocketError.SocketError;
-            try
-            {
-                errorCode = SocketPal.ReceiveAsync(_handle, buffers, socketFlags, asyncResult);
-                if (NetEventSource.IsEnabled) NetEventSource.Info(this, $"Interop.Winsock.WSARecv returns:{errorCode} returning AsyncResult:{asyncResult}");
-            }
-            finally
-            {
-                errorCode = asyncResult.CheckAsyncCallOverlappedResult(errorCode);
-            }
+            SocketError errorCode = SocketPal.ReceiveAsync(_handle, buffers, socketFlags, asyncResult);
 
-            // Throw an appropriate SocketException if the native call fails synchronously.
-            if (errorCode != SocketError.Success)
+            if (NetEventSource.IsEnabled) NetEventSource.Info(this, $"Interop.Winsock.WSARecv returns:{errorCode} returning AsyncResult:{asyncResult}");
+ 
+            if (!CheckErrorAndUpdateStatus(errorCode))
             {
-                // Update the internal state of this socket according to the error before throwing.
-                UpdateStatusAfterSocketError(errorCode);
-                if (NetEventSource.IsEnabled)
-                {
-                    if (NetEventSource.IsEnabled) NetEventSource.Error(this, new SocketException((int)errorCode));
-                }
             }
 #if DEBUG
             else
@@ -3447,20 +3300,14 @@ namespace System.Net.Sockets
                 _rightEndPoint = oldEndPoint;
                 throw;
             }
-            finally
-            {
-                errorCode = asyncResult.CheckAsyncCallOverlappedResult(errorCode);
-            }
 
             // Throw an appropriate SocketException if the native call fails synchronously.
-            if (errorCode != SocketError.Success)
+            if (!CheckErrorAndUpdateStatus(errorCode))
             {
                 // Update the internal state of this socket according to the error before throwing.
                 _rightEndPoint = oldEndPoint;
-                SocketException socketException = new SocketException((int)errorCode);
-                UpdateStatusAfterSocketError(socketException);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                throw socketException;
+
+                throw new SocketException((int)errorCode);
             }
 
             // Capture the context, maybe call the callback, and return.
@@ -3552,11 +3399,7 @@ namespace System.Net.Sockets
             // Throw an appropriate SocketException if the native call failed asynchronously.
             if ((SocketError)castedAsyncResult.ErrorCode != SocketError.Success && (SocketError)castedAsyncResult.ErrorCode != SocketError.MessageSize)
             {
-                // Update the internal state of this socket according to the error before throwing.
-                SocketException socketException = new SocketException(castedAsyncResult.ErrorCode);
-                UpdateStatusAfterSocketError(socketException);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                throw socketException;
+                UpdateStatusAfterSocketErrorAndThrowException((SocketError)castedAsyncResult.ErrorCode);
             }
 
             socketFlags = castedAsyncResult.SocketFlags;
@@ -3633,7 +3476,7 @@ namespace System.Net.Sockets
             Internals.SocketAddress socketAddress = SnapshotAndSerialize(ref remoteEP);
 
             // Set up the result and set it to collect the context.
-            OverlappedAsyncResult asyncResult = new OverlappedAsyncResult(this, state, callback);
+            var asyncResult = new OriginalAddressOverlappedAsyncResult(this, state, callback);
             asyncResult.StartPostingAsyncOp(false);
 
             // Start the ReceiveFrom.
@@ -3657,7 +3500,7 @@ namespace System.Net.Sockets
             return asyncResult;
         }
 
-        private void DoBeginReceiveFrom(byte[] buffer, int offset, int size, SocketFlags socketFlags, EndPoint endPointSnapshot, Internals.SocketAddress socketAddress, OverlappedAsyncResult asyncResult)
+        private void DoBeginReceiveFrom(byte[] buffer, int offset, int size, SocketFlags socketFlags, EndPoint endPointSnapshot, Internals.SocketAddress socketAddress, OriginalAddressOverlappedAsyncResult asyncResult)
         {
             EndPoint oldEndPoint = _rightEndPoint;
 
@@ -3685,20 +3528,14 @@ namespace System.Net.Sockets
                 _rightEndPoint = oldEndPoint;
                 throw;
             }
-            finally
-            {
-                errorCode = asyncResult.CheckAsyncCallOverlappedResult(errorCode);
-            }
 
             // Throw an appropriate SocketException if the native call fails synchronously.
-            if (errorCode != SocketError.Success)
+            if (!CheckErrorAndUpdateStatus(errorCode))
             {
                 // Update the internal state of this socket according to the error before throwing.
                 _rightEndPoint = oldEndPoint;
-                SocketException socketException = new SocketException((int)errorCode);
-                UpdateStatusAfterSocketError(socketException);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                throw socketException;
+
+                throw new SocketException((int)errorCode);
             }
 
             if (NetEventSource.IsEnabled) NetEventSource.Info(this, $"size:{size} return AsyncResult:{asyncResult}");
@@ -3786,11 +3623,7 @@ namespace System.Net.Sockets
             // Throw an appropriate SocketException if the native call failed asynchronously.
             if ((SocketError)castedAsyncResult.ErrorCode != SocketError.Success)
             {
-                // Update the internal state of this socket according to the error before throwing.
-                SocketException socketException = new SocketException(castedAsyncResult.ErrorCode);
-                UpdateStatusAfterSocketError(socketException);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                throw socketException;
+                UpdateStatusAfterSocketErrorAndThrowException((SocketError)castedAsyncResult.ErrorCode);
             }
             if (NetEventSource.IsEnabled) NetEventSource.Exit(this, bytesTransferred);
             return bytesTransferred;
@@ -3878,20 +3711,15 @@ namespace System.Net.Sockets
 
             if (NetEventSource.IsEnabled) NetEventSource.Info(this, $"AcceptSocket:{acceptSocket}");
 
-            int socketAddressSize = _rightEndPoint.Serialize().Size;
+            int socketAddressSize = GetAddressSize(_rightEndPoint);
             SocketError errorCode = SocketPal.AcceptAsync(this, _handle, acceptHandle, receiveSize, socketAddressSize, asyncResult);
-
-            errorCode = asyncResult.CheckAsyncCallOverlappedResult(errorCode);
 
             if (NetEventSource.IsEnabled) NetEventSource.Info(this, $"Interop.Winsock.AcceptEx returns:{errorCode} {asyncResult}");
 
             // Throw an appropriate SocketException if the native call fails synchronously.
-            if (errorCode != SocketError.Success)
+            if (!CheckErrorAndUpdateStatus(errorCode))
             {
-                SocketException socketException = new SocketException((int)errorCode);
-                UpdateStatusAfterSocketError(socketException);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                throw socketException;
+                throw new SocketException((int)errorCode);
             }
         }
 
@@ -3915,7 +3743,7 @@ namespace System.Net.Sockets
             return EndAccept(out buffer, out bytesTransferred, asyncResult);
         }
 
-        internal Socket EndAccept(out byte[] buffer, IAsyncResult asyncResult)
+        public Socket EndAccept(out byte[] buffer, IAsyncResult asyncResult)
         {
             int bytesTransferred;
             byte[] innerBuffer;
@@ -3926,7 +3754,7 @@ namespace System.Net.Sockets
             return socket;
         }
 
-        internal Socket EndAccept(out byte[] buffer, out int bytesTransferred, IAsyncResult asyncResult)
+        public Socket EndAccept(out byte[] buffer, out int bytesTransferred, IAsyncResult asyncResult)
         {
             if (NetEventSource.IsEnabled) NetEventSource.Enter(this, asyncResult);
             if (CleanedUp)
@@ -3966,11 +3794,7 @@ namespace System.Net.Sockets
             // Throw an appropriate SocketException if the native call failed asynchronously.
             if ((SocketError)castedAsyncResult.ErrorCode != SocketError.Success)
             {
-                // Update the internal state of this socket according to the error before throwing.
-                SocketException socketException = new SocketException(castedAsyncResult.ErrorCode);
-                UpdateStatusAfterSocketError(socketException);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                throw socketException;
+                UpdateStatusAfterSocketErrorAndThrowException((SocketError)castedAsyncResult.ErrorCode);
             }
 
 #if TRACE_VERBOSE
@@ -4010,11 +3834,7 @@ namespace System.Net.Sockets
             // Skip good cases: success, socket already closed.
             if (errorCode != SocketError.Success && errorCode != SocketError.NotSocket)
             {
-                // Update the internal state of this socket according to the error before throwing.
-                SocketException socketException = new SocketException((int)errorCode);
-                UpdateStatusAfterSocketError(socketException);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                throw socketException;
+                UpdateStatusAfterSocketErrorAndThrowException(errorCode);
             }
 
             SetToDisconnected();
@@ -4026,7 +3846,6 @@ namespace System.Net.Sockets
         public bool AcceptAsync(SocketAsyncEventArgs e)
         {
             if (NetEventSource.IsEnabled) NetEventSource.Enter(this, e);
-            bool retval;
 
             if (CleanedUp)
             {
@@ -4037,7 +3856,7 @@ namespace System.Net.Sockets
             {
                 throw new ArgumentNullException(nameof(e));
             }
-            if (e._bufferList != null)
+            if (e.HasMultipleBuffers)
             {
                 throw new ArgumentException(SR.net_multibuffernotsupported, "BufferList");
             }
@@ -4059,13 +3878,12 @@ namespace System.Net.Sockets
             e.StartOperationAccept();
 
             // Local variables for sync completion.
-            int bytesTransferred;
             SocketError socketError = SocketError.Success;
 
             // Make the native call.
             try
             {
-                socketError = e.DoOperationAccept(this, _handle, acceptHandle, out bytesTransferred);
+                socketError = e.DoOperationAccept(this, _handle, acceptHandle);
             }
             catch
             {
@@ -4074,25 +3892,15 @@ namespace System.Net.Sockets
                 throw;
             }
 
-            // Handle completion when completion port is not posted.
-            if (socketError != SocketError.Success && socketError != SocketError.IOPending)
-            {
-                e.FinishOperationSyncFailure(socketError, bytesTransferred, SocketFlags.None);
-                retval = false;
-            }
-            else
-            {
-                retval = true;
-            }
-
-            if (NetEventSource.IsEnabled) NetEventSource.Exit(this, retval);
-            return retval;
+            bool pending = (socketError == SocketError.IOPending);
+            if (NetEventSource.IsEnabled) NetEventSource.Exit(this, pending);
+            return pending;
         }
 
         public bool ConnectAsync(SocketAsyncEventArgs e)
         {
             if (NetEventSource.IsEnabled) NetEventSource.Enter(this, e);
-            bool retval;
+            bool pending;
 
             if (CleanedUp)
             {
@@ -4103,7 +3911,7 @@ namespace System.Net.Sockets
             {
                 throw new ArgumentNullException(nameof(e));
             }
-            if (e._bufferList != null)
+            if (e.HasMultipleBuffers)
             {
                 throw new ArgumentException(SR.net_multibuffernotsupported, "BufferList");
             }
@@ -4116,7 +3924,7 @@ namespace System.Net.Sockets
                 throw new InvalidOperationException(SR.net_sockets_mustnotlisten);
             }
 
-            // Check permissions for connect and prepare SocketAddress.
+            // Prepare SocketAddress.
             EndPoint endPointSnapshot = e.RemoteEndPoint;
             DnsEndPoint dnsEP = endPointSnapshot as DnsEndPoint;
 
@@ -4124,29 +3932,31 @@ namespace System.Net.Sockets
             {
                 if (NetEventSource.IsEnabled) NetEventSource.ConnectedAsyncDns(this);
 
+                ValidateForMultiConnect(isMultiEndpoint: true); // needs to come before CanTryAddressFamily call
+
                 if (dnsEP.AddressFamily != AddressFamily.Unspecified && !CanTryAddressFamily(dnsEP.AddressFamily))
                 {
                     throw new NotSupportedException(SR.net_invalidversion);
                 }
-
-                ThrowIfNotSupportsMultipleConnectAttempts();
 
                 MultipleConnectAsync multipleConnectAsync = new SingleSocketMultipleConnectAsync(this, true);
 
                 e.StartOperationCommon(this);
                 e.StartOperationWrapperConnect(multipleConnectAsync);
 
-                retval = multipleConnectAsync.StartConnectAsync(e, dnsEP);
+                pending = multipleConnectAsync.StartConnectAsync(e, dnsEP);
             }
             else
             {
+                ValidateForMultiConnect(isMultiEndpoint: false); // needs to come before CanTryAddressFamily call
+
                 // Throw if remote address family doesn't match socket.
                 if (!CanTryAddressFamily(e.RemoteEndPoint.AddressFamily))
                 {
                     throw new NotSupportedException(SR.net_invalidversion);
                 }
 
-                e._socketAddress = CheckCacheRemote(ref endPointSnapshot, false);
+                e._socketAddress = SnapshotAndSerialize(ref endPointSnapshot);
 
                 // Do wildcard bind if socket not bound.
                 if (_rightEndPoint == null)
@@ -4173,11 +3983,10 @@ namespace System.Net.Sockets
                 e.StartOperationConnect();
 
                 // Make the native call.
-                int bytesTransferred;
                 SocketError socketError = SocketError.Success;
                 try
                 {
-                    socketError = e.DoOperationConnect(this, _handle, out bytesTransferred);
+                    socketError = e.DoOperationConnect(this, _handle);
                 }
                 catch
                 {
@@ -4188,32 +3997,23 @@ namespace System.Net.Sockets
                     throw;
                 }
 
-                // Handle failure where completion port is not posted.
-                if (socketError != SocketError.Success && socketError != SocketError.IOPending)
-                {
-                    e.FinishOperationSyncFailure(socketError, bytesTransferred, SocketFlags.None);
-                    retval = false;
-                }
-                else
-                {
-                    retval = true;
-                }
+                pending = (socketError == SocketError.IOPending);
             }
 
-            if (NetEventSource.IsEnabled)  NetEventSource.Exit(this, retval);
-            return retval;
+            if (NetEventSource.IsEnabled) NetEventSource.Exit(this, pending);
+            return pending;
         }
 
         public static bool ConnectAsync(SocketType socketType, ProtocolType protocolType, SocketAsyncEventArgs e)
         {
             if (NetEventSource.IsEnabled) NetEventSource.Enter(null);
-            bool retval;
+            bool pending;
 
             if (e == null)
             {
                 throw new ArgumentNullException(nameof(e));
             }
-            if (e._bufferList != null)
+            if (e.HasMultipleBuffers)
             {
                 throw new ArgumentException(SR.net_multibuffernotsupported, "BufferList");
             }
@@ -4231,17 +4031,9 @@ namespace System.Net.Sockets
                 MultipleConnectAsync multipleConnectAsync = null;
                 if (dnsEP.AddressFamily == AddressFamily.Unspecified)
                 {
-                    // Disable CS0162 and CS0429: Unreachable code detected
-                    //
-                    // SuportsMultipleConnectAttempts is a constant; when false, the following lines will trigger CS0162 or CS0429.
-                    //
-                    // This is the only *Connect* API that actually supports multiple endpoint attempts, as it's responsible 
-                    // for creating each Socket instance and can create one per attempt (with the instance methods, once a 
-                    // connect fails, on unix systems that socket can't be used for subsequent connect attempts).
-#pragma warning disable 162, 429
-                    multipleConnectAsync = SocketPal.SupportsMultipleConnectAttempts ?
-                        (MultipleConnectAsync)(new DualSocketMultipleConnectAsync(socketType, protocolType)) :
-                        (MultipleConnectAsync)(new MultipleSocketMultipleConnectAsync(socketType, protocolType));
+                    // This is the only *Connect* API that fully supports multiple endpoint attempts, as it's responsible 
+                    // for creating each Socket instance and can create one per attempt.
+                    multipleConnectAsync = new DualSocketMultipleConnectAsync(socketType, protocolType);
 #pragma warning restore
                 }
                 else
@@ -4253,16 +4045,16 @@ namespace System.Net.Sockets
                 e.StartOperationCommon(attemptSocket);
                 e.StartOperationWrapperConnect(multipleConnectAsync);
 
-                retval = multipleConnectAsync.StartConnectAsync(e, dnsEP);
+                pending = multipleConnectAsync.StartConnectAsync(e, dnsEP);
             }
             else
             {
                 Socket attemptSocket = new Socket(endPointSnapshot.AddressFamily, socketType, protocolType);
-                retval = attemptSocket.ConnectAsync(e);
+                pending = attemptSocket.ConnectAsync(e);
             }
 
-            if (NetEventSource.IsEnabled) NetEventSource.Exit(null, retval);
-            return retval;
+            if (NetEventSource.IsEnabled) NetEventSource.Exit(null, pending);
+            return pending;
         }
 
         public static void CancelConnectAsync(SocketAsyncEventArgs e)
@@ -4277,7 +4069,6 @@ namespace System.Net.Sockets
         public bool DisconnectAsync(SocketAsyncEventArgs e)
         {
             if (NetEventSource.IsEnabled) NetEventSource.Enter(this);
-            bool retval;
 
             // Throw if socket disposed
             if (CleanedUp)
@@ -4301,17 +4092,7 @@ namespace System.Net.Sockets
                 throw;
             }
 
-            // Handle completion when completion port is not posted.
-            if (socketError != SocketError.Success && socketError != SocketError.IOPending)
-            {
-                e.FinishOperationSyncFailure(socketError, 0, SocketFlags.None);
-                retval = false;
-            }
-            else
-            {
-                retval = true;
-            }
-
+            bool retval = (socketError == SocketError.IOPending);
             if (NetEventSource.IsEnabled) NetEventSource.Exit(this, retval);
             return retval;
         }
@@ -4319,7 +4100,6 @@ namespace System.Net.Sockets
         public bool ReceiveAsync(SocketAsyncEventArgs e)
         {
             if (NetEventSource.IsEnabled) NetEventSource.Enter(this, e);
-            bool retval;
 
             if (CleanedUp)
             {
@@ -4337,13 +4117,12 @@ namespace System.Net.Sockets
 
             // Local vars for sync completion of native call.
             SocketFlags flags;
-            int bytesTransferred;
             SocketError socketError;
 
             // Wrap native methods with try/catch so event args object can be cleaned up.
             try
             {
-                socketError = e.DoOperationReceive(_handle, out flags, out bytesTransferred);
+                socketError = e.DoOperationReceive(_handle, out flags);
             }
             catch
             {
@@ -4352,25 +4131,14 @@ namespace System.Net.Sockets
                 throw;
             }
 
-            // Handle completion when completion port is not posted.
-            if (socketError != SocketError.Success && socketError != SocketError.IOPending)
-            {
-                e.FinishOperationSyncFailure(socketError, bytesTransferred, flags);
-                retval = false;
-            }
-            else
-            {
-                retval = true;
-            }
-
-            if (NetEventSource.IsEnabled) NetEventSource.Exit(this, retval);
-            return retval;
+            bool pending = (socketError == SocketError.IOPending);
+            if (NetEventSource.IsEnabled) NetEventSource.Exit(this, pending);
+            return pending;
         }
 
         public bool ReceiveFromAsync(SocketAsyncEventArgs e)
         {
             if (NetEventSource.IsEnabled) NetEventSource.Enter(this, e);
-            bool retval;
 
             if (CleanedUp)
             {
@@ -4408,12 +4176,11 @@ namespace System.Net.Sockets
 
             // Make the native call.
             SocketFlags flags;
-            int bytesTransferred;
             SocketError socketError;
 
             try
             {
-                socketError = e.DoOperationReceiveFrom(_handle, out flags, out bytesTransferred);
+                socketError = e.DoOperationReceiveFrom(_handle, out flags);
             }
             catch
             {
@@ -4422,25 +4189,14 @@ namespace System.Net.Sockets
                 throw;
             }
 
-            // Handle completion when completion port is not posted.
-            if (socketError != SocketError.Success && socketError != SocketError.IOPending)
-            {
-                e.FinishOperationSyncFailure(socketError, bytesTransferred, flags);
-                retval = false;
-            }
-            else
-            {
-                retval = true;
-            }
-
-            if (NetEventSource.IsEnabled) NetEventSource.Exit(this, retval);
-            return retval;
+            bool pending = (socketError == SocketError.IOPending);
+            if (NetEventSource.IsEnabled) NetEventSource.Exit(this, pending);
+            return pending;
         }
 
         public bool ReceiveMessageFromAsync(SocketAsyncEventArgs e)
         {
             if (NetEventSource.IsEnabled) NetEventSource.Enter(this, e);
-            bool retval;
 
             if (CleanedUp)
             {
@@ -4479,12 +4235,11 @@ namespace System.Net.Sockets
             e.StartOperationReceiveMessageFrom();
 
             // Make the native call.
-            int bytesTransferred;
             SocketError socketError;
 
             try
             {
-                socketError = e.DoOperationReceiveMessageFrom(this, _handle, out bytesTransferred);
+                socketError = e.DoOperationReceiveMessageFrom(this, _handle);
             }
             catch
             {
@@ -4493,25 +4248,14 @@ namespace System.Net.Sockets
                 throw;
             }
 
-            // Handle completion when completion port is not posted.
-            if (socketError != SocketError.Success && socketError != SocketError.IOPending)
-            {
-                e.FinishOperationSyncFailure(socketError, bytesTransferred, SocketFlags.None);
-                retval = false;
-            }
-            else
-            {
-                retval = true;
-            }
-
-            if (NetEventSource.IsEnabled) NetEventSource.Exit(this, retval);
-            return retval;
+            bool pending = (socketError == SocketError.IOPending);
+            if (NetEventSource.IsEnabled) NetEventSource.Exit(this, pending);
+            return pending;
         }
 
         public bool SendAsync(SocketAsyncEventArgs e)
         {
             if (NetEventSource.IsEnabled) NetEventSource.Enter(this, e);
-            bool retval;
 
             if (CleanedUp)
             {
@@ -4528,13 +4272,12 @@ namespace System.Net.Sockets
             e.StartOperationSend();
 
             // Local vars for sync completion of native call.
-            int bytesTransferred;
             SocketError socketError;
 
             // Wrap native methods with try/catch so event args object can be cleaned up.
             try
             {
-                socketError = e.DoOperationSend(_handle, out bytesTransferred);
+                socketError = e.DoOperationSend(_handle);
             }
             catch
             {
@@ -4543,25 +4286,14 @@ namespace System.Net.Sockets
                 throw;
             }
 
-            // Handle completion when completion port is not posted.
-            if (socketError != SocketError.Success && socketError != SocketError.IOPending)
-            {
-                e.FinishOperationSyncFailure(socketError, bytesTransferred, SocketFlags.None);
-                retval = false;
-            }
-            else
-            {
-                retval = true;
-            }
-
-            if (NetEventSource.IsEnabled) NetEventSource.Exit(this, retval);
-            return retval;
+            bool pending = (socketError == SocketError.IOPending);
+            if (NetEventSource.IsEnabled) NetEventSource.Exit(this, pending);
+            return pending;
         }
 
         public bool SendPacketsAsync(SocketAsyncEventArgs e)
         {
             if (NetEventSource.IsEnabled) NetEventSource.Enter(this, e);
-            bool retval;
 
             // Throw if socket disposed
             if (CleanedUp)
@@ -4603,33 +4335,22 @@ namespace System.Net.Sockets
                     e.Complete();
                     throw;
                 }
-
-                // Handle completion when completion port is not posted.
-                if (socketError != SocketError.Success && socketError != SocketError.IOPending)
-                {
-                    e.FinishOperationSyncFailure(socketError, 0, SocketFlags.None);
-                    retval = false;
-                }
-                else
-                {
-                    retval = true;
-                }
             }
             else
             {
                 // No buffers or files to send.
-                e.FinishOperationSuccess(SocketError.Success, 0, SocketFlags.None);
-                retval = false;
+                e.FinishOperationSyncSuccess(0, SocketFlags.None);
+                socketError = SocketError.Success;
             }
 
-            if (NetEventSource.IsEnabled) NetEventSource.Exit(this, retval);
-            return retval;
+            bool pending = (socketError == SocketError.IOPending);
+            if (NetEventSource.IsEnabled) NetEventSource.Exit(this, pending);
+            return pending;
         }
 
         public bool SendToAsync(SocketAsyncEventArgs e)
         {
             if (NetEventSource.IsEnabled) NetEventSource.Enter(this, e);
-            bool retval;
 
             if (CleanedUp)
             {
@@ -4645,22 +4366,21 @@ namespace System.Net.Sockets
                 throw new ArgumentNullException(nameof(RemoteEndPoint));
             }
 
-            // Check permissions for connect and prepare SocketAddress
+            // Prepare SocketAddress
             EndPoint endPointSnapshot = e.RemoteEndPoint;
-            e._socketAddress = CheckCacheRemote(ref endPointSnapshot, false);
+            e._socketAddress = SnapshotAndSerialize(ref endPointSnapshot);
 
             // Prepare for the native call.
             e.StartOperationCommon(this);
             e.StartOperationSendTo();
 
             // Make the native call.
-            int bytesTransferred;
             SocketError socketError;
 
             // Wrap native methods with try/catch so event args object can be cleaned up.
             try
             {
-                socketError = e.DoOperationSendTo(_handle, out bytesTransferred);
+                socketError = e.DoOperationSendTo(_handle);
             }
             catch
             {
@@ -4669,17 +4389,7 @@ namespace System.Net.Sockets
                 throw;
             }
 
-            // Handle completion when completion port is not posted.
-            if (socketError != SocketError.Success && socketError != SocketError.IOPending)
-            {
-                e.FinishOperationSyncFailure(socketError, bytesTransferred, SocketFlags.None);
-                retval = false;
-            }
-            else
-            {
-                retval = true;
-            }
-
+            bool retval = (socketError == SocketError.IOPending);
             if (NetEventSource.IsEnabled) NetEventSource.Exit(this, retval);
             return retval;
         }
@@ -4743,57 +4453,33 @@ namespace System.Net.Sockets
             isIPv6 = addressFamily == AddressFamily.InterNetworkV6;
         }
 
-        private void CheckSetOptionPermissions(SocketOptionLevel optionLevel, SocketOptionName optionName)
+        internal static int GetAddressSize(EndPoint endPoint)
         {
-            // Freely allow only the options listed below.
-            if (!(optionLevel == SocketOptionLevel.Tcp &&
-                  (optionName == SocketOptionName.NoDelay ||
-                   optionName == SocketOptionName.BsdUrgent ||
-                   optionName == SocketOptionName.Expedited))
-                  &&
-                  !(optionLevel == SocketOptionLevel.Udp &&
-                    (optionName == SocketOptionName.NoChecksum ||
-                     optionName == SocketOptionName.ChecksumCoverage))
-                  &&
-                  !(optionLevel == SocketOptionLevel.Socket &&
-                  (optionName == SocketOptionName.KeepAlive ||
-                   optionName == SocketOptionName.Linger ||
-                   optionName == SocketOptionName.DontLinger ||
-                   optionName == SocketOptionName.SendBuffer ||
-                   optionName == SocketOptionName.ReceiveBuffer ||
-                   optionName == SocketOptionName.SendTimeout ||
-                   optionName == SocketOptionName.ExclusiveAddressUse ||
-                   optionName == SocketOptionName.ReceiveTimeout))
-                  &&
-                  !(optionLevel == SocketOptionLevel.IPv6 &&
-                    optionName == (SocketOptionName)23)) // IPv6 protection level.
-            {
-            }
+            AddressFamily fam = endPoint.AddressFamily;
+            return
+                fam == AddressFamily.InterNetwork ? SocketAddressPal.IPv4AddressSize :
+                fam == AddressFamily.InterNetworkV6 ? SocketAddressPal.IPv6AddressSize :
+                endPoint.Serialize().Size;
         }
 
         private Internals.SocketAddress SnapshotAndSerialize(ref EndPoint remoteEP)
         {
-            IPEndPoint ipSnapshot = remoteEP as IPEndPoint;
-
-            if (ipSnapshot != null)
+            if (remoteEP is IPEndPoint ipSnapshot)
             {
+                // Snapshot to avoid external tampering and malicious derivations if IPEndPoint.
                 ipSnapshot = ipSnapshot.Snapshot();
+
+                // DualMode: return an IPEndPoint mapped to an IPv6 address.
                 remoteEP = RemapIPEndPoint(ipSnapshot);
             }
-
-            return CallSerializeCheckDnsEndPoint(remoteEP);
-        }
-
-        // Give a nicer exception for DnsEndPoint in cases where it is not supported.
-        private Internals.SocketAddress CallSerializeCheckDnsEndPoint(EndPoint remoteEP)
-        {
-            if (remoteEP is DnsEndPoint)
+            else if (remoteEP is DnsEndPoint)
             {
                 throw new ArgumentException(SR.Format(SR.net_sockets_invalid_dnsendpoint, nameof(remoteEP)), nameof(remoteEP));
             }
 
             return IPEndPointExtensions.Serialize(remoteEP);
         }
+
 
         // DualMode: automatically re-map IPv4 addresses to IPv6 addresses.
         private IPEndPoint RemapIPEndPoint(IPEndPoint input)
@@ -4803,40 +4489,6 @@ namespace System.Net.Sockets
                 return new IPEndPoint(input.Address.MapToIPv6(), input.Port);
             }
             return input;
-        }
-
-        // A socketAddress must always be the result of remoteEP.Serialize().
-        private Internals.SocketAddress CheckCacheRemote(ref EndPoint remoteEP, bool isOverwrite)
-        {
-            IPEndPoint ipSnapshot = remoteEP as IPEndPoint;
-
-            if (ipSnapshot != null)
-            {
-                // Snapshot to avoid external tampering and malicious derivations if IPEndPoint.
-                ipSnapshot = ipSnapshot.Snapshot();
-
-                // DualMode: Do the security check on the user input address, but return an IPEndPoint 
-                // mapped to an IPv6 address.
-                remoteEP = RemapIPEndPoint(ipSnapshot);
-            }
-
-            // This doesn't use SnapshotAndSerialize() because we need the ipSnapshot later.
-            Internals.SocketAddress socketAddress = CallSerializeCheckDnsEndPoint(remoteEP);
-
-            // We remember the first peer with which we have communicated.
-            Internals.SocketAddress permittedRemoteAddress = _permittedRemoteAddress;
-            if (permittedRemoteAddress != null && permittedRemoteAddress.Equals(socketAddress))
-            {
-                return permittedRemoteAddress;
-            }
-
-            // Cache only the first peer with which we communicated.
-            if (_permittedRemoteAddress == null || isOverwrite)
-            {
-                _permittedRemoteAddress = socketAddress;
-            }
-
-            return socketAddress;
         }
 
         internal static void InitializeSockets()
@@ -4850,18 +4502,11 @@ namespace System.Net.Sockets
                         SocketPal.Initialize();
 
                         // Cache some settings locally.
-                        s_perfCountersEnabled = SocketPerfCounter.Instance.Enabled;
+                        // s_perfCountersEnabled = SocketPerfCounter.Instance.Enabled; // TODO (#7833): Implement socket perf counters.
                         s_initialized = true;
                     }
                 }
             }
-        }
-
-        internal void InternalConnect(EndPoint remoteEP)
-        {
-            EndPoint endPointSnapshot = remoteEP;
-            Internals.SocketAddress socketAddress = SnapshotAndSerialize(ref endPointSnapshot);
-            DoConnect(endPointSnapshot, socketAddress);
         }
 
         private void DoConnect(EndPoint endPointSnapshot, Internals.SocketAddress socketAddress)
@@ -4956,7 +4601,7 @@ namespace System.Net.Sockets
                 {
                     SocketError errorCode;
 
-                    // Go to blocking mode.  We know no WSAEventSelect is pending because of the lock and UnsetAsyncEventSelect() above.
+                    // Go to blocking mode.
                     if (!_willBlock || !_willBlockInternal)
                     {
                         bool willBlock;
@@ -5027,6 +4672,9 @@ namespace System.Net.Sockets
             {
                 NetEventSource.Fail(this, $"handle:{_handle}, Closing the handle threw ObjectDisposedException.");
             }
+
+            // Clean up any cached data
+            DisposeCachedTaskSocketAsyncEventArgs();
         }
 
         public void Dispose()
@@ -5133,11 +4781,7 @@ namespace System.Net.Sockets
             // Throw an appropriate SocketException if the native call fails.
             if (errorCode != SocketError.Success)
             {
-                // Update the internal state of this socket according to the error before throwing.
-                SocketException socketException = new SocketException((int)errorCode);
-                UpdateStatusAfterSocketError(socketException);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                throw socketException;
+                UpdateStatusAfterSocketErrorAndThrowException(errorCode);
             }
         }
 
@@ -5150,11 +4794,7 @@ namespace System.Net.Sockets
             // Throw an appropriate SocketException if the native call fails.
             if (errorCode != SocketError.Success)
             {
-                // Update the internal state of this socket according to the error before throwing.
-                SocketException socketException = new SocketException((int)errorCode);
-                UpdateStatusAfterSocketError(socketException);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                throw socketException;
+                UpdateStatusAfterSocketErrorAndThrowException(errorCode);
             }
         }
 
@@ -5168,11 +4808,7 @@ namespace System.Net.Sockets
             // Throw an appropriate SocketException if the native call fails.
             if (errorCode != SocketError.Success)
             {
-                // Update the internal state of this socket according to the error before throwing.
-                SocketException socketException = new SocketException((int)errorCode);
-                UpdateStatusAfterSocketError(socketException);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                throw socketException;
+                UpdateStatusAfterSocketErrorAndThrowException(errorCode);
             }
         }
 
@@ -5185,11 +4821,7 @@ namespace System.Net.Sockets
             // Throw an appropriate SocketException if the native call fails.
             if (errorCode != SocketError.Success)
             {
-                // Update the internal state of this socket according to the error before throwing.
-                SocketException socketException = new SocketException((int)errorCode);
-                UpdateStatusAfterSocketError(socketException);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                throw socketException;
+                UpdateStatusAfterSocketErrorAndThrowException(errorCode);
             }
         }
 
@@ -5203,11 +4835,7 @@ namespace System.Net.Sockets
             // Throw an appropriate SocketException if the native call fails.
             if (errorCode != SocketError.Success)
             {
-                // Update the internal state of this socket according to the error before throwing.
-                SocketException socketException = new SocketException((int)errorCode);
-                UpdateStatusAfterSocketError(socketException);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                throw socketException;
+                UpdateStatusAfterSocketErrorAndThrowException(errorCode);
             }
 
             return lingerOption;
@@ -5223,11 +4851,7 @@ namespace System.Net.Sockets
             // Throw an appropriate SocketException if the native call fails.
             if (errorCode != SocketError.Success)
             {
-                // Update the internal state of this socket according to the error before throwing.
-                SocketException socketException = new SocketException((int)errorCode);
-                UpdateStatusAfterSocketError(socketException);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                throw socketException;
+                UpdateStatusAfterSocketErrorAndThrowException(errorCode);
             }
 
             return multicastOption;
@@ -5244,11 +4868,7 @@ namespace System.Net.Sockets
             // Throw an appropriate SocketException if the native call fails.
             if (errorCode != SocketError.Success)
             {
-                // Update the internal state of this socket according to the error before throwing.
-                SocketException socketException = new SocketException((int)errorCode);
-                UpdateStatusAfterSocketError(socketException);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                throw socketException;
+                UpdateStatusAfterSocketErrorAndThrowException(errorCode);
             }
 
             return multicastOption;
@@ -5307,9 +4927,8 @@ namespace System.Net.Sockets
         {
             if (NetEventSource.IsEnabled) NetEventSource.Enter(this);
 
-            // This will check the permissions for connect.
             EndPoint endPointSnapshot = remoteEP;
-            Internals.SocketAddress socketAddress = flowContext ? CheckCacheRemote(ref endPointSnapshot, true) : SnapshotAndSerialize(ref endPointSnapshot);
+            Internals.SocketAddress socketAddress = SnapshotAndSerialize(ref endPointSnapshot);
 
             // The socket must be bound first.
             // The calling method--BeginConnect--will ensure that this method is only
@@ -5348,32 +4967,25 @@ namespace System.Net.Sockets
             }
             catch
             {
-                // If ConnectEx throws we need to unpin the socketAddress buffer.
                 // _rightEndPoint will always equal oldEndPoint.
-                asyncResult.InternalCleanup();
                 _rightEndPoint = oldEndPoint;
                 throw;
             }
 
+            if (NetEventSource.IsEnabled) NetEventSource.Info(this, $"Interop.Winsock.connect returns:{errorCode}");
 
             if (errorCode == SocketError.Success)
             {
+                // Synchronous success. Indicate that we're connected.
                 SetToConnected();
             }
 
-            if (NetEventSource.IsEnabled) NetEventSource.Info(this, $"Interop.Winsock.connect returns:{errorCode}");
-
-            errorCode = asyncResult.CheckAsyncCallOverlappedResult(errorCode);
-
-            // Throw an appropriate SocketException if the native call fails synchronously.
-            if (errorCode != SocketError.Success)
+            if (!CheckErrorAndUpdateStatus(errorCode))
             {
                 // Update the internal state of this socket according to the error before throwing.
                 _rightEndPoint = oldEndPoint;
-                SocketException socketException = new SocketException((int)errorCode);
-                UpdateStatusAfterSocketError(socketException);
-                if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException);
-                throw socketException;
+
+                throw new SocketException((int)errorCode);
             }
 
             // We didn't throw, so indicate that we're returning this result to the user.  This may call the callback.
@@ -5416,7 +5028,7 @@ namespace System.Net.Sockets
 
         private static bool DoDnsCallback(IAsyncResult result, MultipleAddressConnectAsyncResult context)
         {
-            IPAddress[] addresses = DnsAPMExtensions.EndGetHostAddresses(result);
+            IPAddress[] addresses = Dns.EndGetHostAddresses(result);
             context._addresses = addresses;
             return DoMultipleAddressConnectCallback(PostOneBeginConnect(context), context);
         }
@@ -5451,8 +5063,6 @@ namespace System.Net.Sockets
             internal IPAddress[] _addresses;
             internal int _index;
             internal int _port;
-            internal bool _isUserConnectAttempt;
-            internal Socket _lastAttemptSocket;
             internal Exception _lastException;
 
             internal EndPoint RemoteEndPoint
@@ -5484,13 +5094,11 @@ namespace System.Net.Sockets
             }
         }
 
-        // Disable CS0162: Unreachable code detected
-        //
-        // SuportsMultipleConnectAttempts is a constant; when false, the following lines will trigger CS0162.
-#pragma warning disable 162, 429
         private static object PostOneBeginConnect(MultipleAddressConnectAsyncResult context)
         {
             IPAddress currentAddressSnapshot = context._addresses[context._index];
+
+            context._socket.ReplaceHandleIfNecessaryAfterFailedConnect();
 
             if (!context._socket.CanTryAddressFamily(currentAddressSnapshot.AddressFamily))
             {
@@ -5501,34 +5109,16 @@ namespace System.Net.Sockets
             {
                 EndPoint endPoint = new IPEndPoint(currentAddressSnapshot, context._port);
 
-                // Do the necessary security demand.
-                context._socket.CheckCacheRemote(ref endPoint, true);
+                context._socket.SnapshotAndSerialize(ref endPoint);
 
-                Socket connectSocket = context._socket;
-                if (!SocketPal.SupportsMultipleConnectAttempts && !context._isUserConnectAttempt)
-                {
-                    context._lastAttemptSocket = new Socket(context._socket._addressFamily, context._socket._socketType, context._socket._protocolType);
-                    if (context._socket.IsDualMode)
-                    {
-                        context._lastAttemptSocket.DualMode = true;
-                    }
-
-                    connectSocket = context._lastAttemptSocket;
-                }
-
-                IAsyncResult connectResult = connectSocket.UnsafeBeginConnect(endPoint, CachedMultipleAddressConnectCallback, context);
+                IAsyncResult connectResult = context._socket.UnsafeBeginConnect(endPoint, CachedMultipleAddressConnectCallback, context);
                 if (connectResult.CompletedSynchronously)
                 {
                     return connectResult;
                 }
             }
-            catch (Exception exception)
+            catch (Exception exception) when (!(exception is OutOfMemoryException))
             {
-                if (exception is OutOfMemoryException)
-                {
-                    throw;
-                }
-
                 return exception;
             }
 
@@ -5572,15 +5162,7 @@ namespace System.Net.Sockets
                 {
                     try
                     {
-                        if (SocketPal.SupportsMultipleConnectAttempts || context._isUserConnectAttempt)
-                        {
-                            context._socket.EndConnect((IAsyncResult)result);
-                        }
-                        else
-                        {
-                            Debug.Assert(context._lastAttemptSocket != null);
-                            context._lastAttemptSocket.EndConnect((IAsyncResult)result);
-                        }
+                        context._socket.EndConnect((IAsyncResult)result);
                     }
                     catch (Exception exception)
                     {
@@ -5588,31 +5170,18 @@ namespace System.Net.Sockets
                     }
                 }
 
-                if (!SocketPal.SupportsMultipleConnectAttempts && !context._isUserConnectAttempt && context._lastAttemptSocket != null)
-                {
-                    context._lastAttemptSocket.Dispose();
-                }
-
                 if (ex == null)
                 {
-                    if (!SocketPal.SupportsMultipleConnectAttempts && !context._isUserConnectAttempt)
-                    {
-                        context._isUserConnectAttempt = true;
-                        result = PostOneBeginConnect(context);
-                    }
-                    else
-                    {
-                        // Don't invoke the callback from here, because we're probably inside
-                        // a catch-all block that would eat exceptions from the callback.
-                        // Instead tell our caller to invoke the callback outside of its catchall.
-                        return true;
-                    }
+                    // Don't invoke the callback from here, because we're probably inside
+                    // a catch-all block that would eat exceptions from the callback.
+                    // Instead tell our caller to invoke the callback outside of its catchall.
+                    return true;
                 }
                 else
                 {
-                    if (++context._index >= context._addresses.Length || context._isUserConnectAttempt)
+                    if (++context._index >= context._addresses.Length)
                     {
-                        throw ex;
+                        ExceptionDispatchInfo.Throw(ex);
                     }
 
                     context._lastException = ex;
@@ -5623,12 +5192,12 @@ namespace System.Net.Sockets
             // Don't invoke the callback at all, because we've posted another async connection attempt.
             return false;
         }
-#pragma warning restore
 
         // CreateAcceptSocket - pulls unmanaged results and assembles them into a new Socket object.
         internal Socket CreateAcceptSocket(SafeCloseSocket fd, EndPoint remoteEP)
         {
             // Internal state of the socket is inherited from listener.
+            Debug.Assert(fd != null && !fd.IsInvalid);
             Socket socket = new Socket(fd);
             return UpdateAcceptSocket(socket, remoteEP);
         }
@@ -5697,9 +5266,17 @@ namespace System.Net.Sockets
 
             if (!CleanedUp)
             {
-                // If socket is still alive cancel WSAEventSelect().
                 if (NetEventSource.IsEnabled) NetEventSource.Info(this, "!CleanedUp");
             }
+        }
+
+        private void UpdateStatusAfterSocketErrorAndThrowException(SocketError error, [CallerMemberName] string callerName = null)
+        {
+            // Update the internal state of this socket according to the error before throwing.
+            var socketException = new SocketException((int)error);
+            UpdateStatusAfterSocketError(socketException);
+            if (NetEventSource.IsEnabled) NetEventSource.Error(this, socketException, memberName: callerName);
+            throw socketException;
         }
 
         // UpdateStatusAfterSocketError(socketException) - updates the status of a connected socket
@@ -5727,6 +5304,17 @@ namespace System.Net.Sockets
             }
         }
 
+        private bool CheckErrorAndUpdateStatus(SocketError errorCode)
+        {
+            if (errorCode == SocketError.Success || errorCode == SocketError.IOPending)
+            {
+                return true;
+            }
+
+            UpdateStatusAfterSocketError(errorCode);
+            return false;
+        }
+
         // ValidateBlockingMode - called before synchronous calls to validate
         // the fact that we are in blocking mode (not in non-blocking mode) so the
         // call will actually be synchronous.
@@ -5738,12 +5326,15 @@ namespace System.Net.Sockets
             }
         }
 
-        #endregion
+        // Validates that the Socket can be used to try another Connect call, in case
+        // a previous call failed and the platform does not support that.  In some cases,
+        // the call may also be able to "fix" the Socket to continue working, even if the
+        // platform wouldn't otherwise support it.  Windows always supports this.
+        partial void ValidateForMultiConnect(bool isMultiEndpoint);
 
-        [System.Diagnostics.Conditional("TRACE_VERBOSE")]
-        internal void DebugMembers()
-        {
-            if (NetEventSource.IsEnabled) NetEventSource.Info(this, $"_handle:{_handle} _isConnected:{_isConnected}");
-        }
+        // Helper for SendFile implementations
+        private static FileStream OpenFile(string name) => string.IsNullOrEmpty(name) ? null : File.OpenRead(name);
+
+        #endregion
     }
 }

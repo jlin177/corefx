@@ -8,6 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Security;
 using Xunit;
 using Xunit.NetCore.Extensions;
 
@@ -55,7 +56,7 @@ namespace System.Diagnostics.Tests
         }
 
         [ConditionalFact(nameof(PlatformDetection) + "." + nameof(PlatformDetection.IsNotWindowsNanoServer))]
-        [PlatformSpecific(TestPlatforms.Windows)]
+        [PlatformSpecific(TestPlatforms.Windows)]  // Expected behavior varies on Windows and Unix
         public void TestBasePriorityOnWindows()
         {
             ProcessPriorityClass originalPriority = _process.PriorityClass;
@@ -80,7 +81,7 @@ namespace System.Diagnostics.Tests
         }
 
         [Fact] 
-        [PlatformSpecific(TestPlatforms.AnyUnix)]
+        [PlatformSpecific(TestPlatforms.AnyUnix)]  // Expected behavior varies on Windows and Unix
         [OuterLoop]
         [Trait(XunitConstants.Category, XunitConstants.RequiresElevation)]
         public void TestBasePriorityOnUnix()
@@ -149,7 +150,7 @@ namespace System.Diagnostics.Tests
             }
         }
 
-        [PlatformSpecific(TestPlatforms.AnyUnix)]
+        [PlatformSpecific(TestPlatforms.AnyUnix)]  // Tests UseShellExecute with ProcessStartInfo
         [Fact]
         public void TestUseShellExecute_Unix_Succeeds()
         {
@@ -163,13 +164,21 @@ namespace System.Diagnostics.Tests
         [Fact]
         public void TestExitTime()
         {
-            DateTime timeBeforeProcessStart = DateTime.UtcNow;
+            // ExitTime resolution on some platforms is less accurate than our DateTime.UtcNow resolution, so
+            // we subtract ms from the begin time to account for it.
+            DateTime timeBeforeProcessStart = DateTime.UtcNow.AddMilliseconds(-25);
             Process p = CreateProcessLong();
             p.Start();
             Assert.Throws<InvalidOperationException>(() => p.ExitTime);
             p.Kill();
             Assert.True(p.WaitForExit(WaitInMS));
-            Assert.True(p.ExitTime.ToUniversalTime() >= timeBeforeProcessStart, "TestExitTime is incorrect.");
+
+            Assert.True(p.ExitTime.ToUniversalTime() >= timeBeforeProcessStart,
+                $@"TestExitTime is incorrect. " +
+                $@"TimeBeforeStart {timeBeforeProcessStart} Ticks={timeBeforeProcessStart.Ticks}, " +
+                $@"ExitTime={p.ExitTime}, Ticks={p.ExitTime.Ticks}, " +
+                $@"ExitTimeUniversal {p.ExitTime.ToUniversalTime()} Ticks={p.ExitTime.ToUniversalTime().Ticks}, " +
+                $@"NowUniversal {DateTime.Now.ToUniversalTime()} Ticks={DateTime.Now.Ticks}");
         }
 
         [Fact]
@@ -181,7 +190,7 @@ namespace System.Diagnostics.Tests
             }
             else
             {
-                IEnumerable<int> testProcessIds = Process.GetProcessesByName(HostRunner).Select(p => p.Id);
+                IEnumerable<int> testProcessIds = Process.GetProcessesByName(HostRunnerName).Select(p => p.Id);
                 Assert.Contains(_process.Id, testProcessIds);
             }
         }
@@ -223,9 +232,9 @@ namespace System.Diagnostics.Tests
         [Fact]
         public void TestMainModuleOnNonOSX()
         {
-            string fileName = "corerun";
+            string fileName = "dotnet";
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                fileName = "CoreRun.exe";
+                fileName = "dotnet.exe";
 
             Process p = Process.GetCurrentProcess();
             Assert.True(p.Modules.Count > 0);
@@ -453,7 +462,7 @@ namespace System.Diagnostics.Tests
         }
 
         [Fact] 
-        [PlatformSpecific(TestPlatforms.AnyUnix)]
+        [PlatformSpecific(TestPlatforms.AnyUnix)]  // Expected behavior varies on Windows and Unix
         [OuterLoop]
         [Trait(XunitConstants.Category, XunitConstants.RequiresElevation)]
         public void TestPriorityClassUnix()
@@ -473,7 +482,7 @@ namespace System.Diagnostics.Tests
             }
         }
 
-        [Fact, PlatformSpecific(TestPlatforms.Windows)]
+        [Fact, PlatformSpecific(TestPlatforms.Windows)]  // Expected behavior varies on Windows and Unix
         public void TestPriorityClassWindows()
         {
             ProcessPriorityClass priorityClass = _process.PriorityClass;
@@ -514,14 +523,11 @@ namespace System.Diagnostics.Tests
         public void TestSessionId()
         {
             uint sessionId;
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
+#if TargetsWindows
                 Interop.ProcessIdToSessionId((uint)_process.Id, out sessionId);
-            }
-            else
-            {
+#else
                 sessionId = (uint)Interop.getsid(_process.Id);
-            }
+#endif
 
             Assert.Equal(sessionId, (uint)_process.SessionId);
         }
@@ -532,9 +538,12 @@ namespace System.Diagnostics.Tests
             Process current = Process.GetCurrentProcess();
             Assert.NotNull(current);
 
-            int currentProcessId = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ?
-                Interop.GetCurrentProcessId() :
+            int currentProcessId =
+#if TargetsWindows
+                Interop.GetCurrentProcessId();
+#else
                 Interop.getpid();
+#endif
 
             Assert.Equal(currentProcessId, current.Id);
         }
@@ -548,7 +557,7 @@ namespace System.Diagnostics.Tests
         }
 
         [Fact]
-        [PlatformSpecific(TestPlatforms.AnyUnix)]
+        [PlatformSpecific(TestPlatforms.AnyUnix)]  // Uses P/Invokes to get process Id
         public void TestRootGetProcessById()
         {
             Process p = Process.GetProcessById(1);
@@ -595,8 +604,13 @@ namespace System.Diagnostics.Tests
         {
             try
             {
-                int? value = (int?)Microsoft.Win32.Registry.GetValue(@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\PerfProc\Performance", "Disable Performance Counters", null);
-                return !value.HasValue || value.Value == 0;
+                using (Microsoft.Win32.RegistryKey perfKey = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\PerfProc\Performance"))
+                {
+                    if (perfKey == null)
+                        return false;
+                    int? value = (int?)perfKey.GetValue("Disable Performance Counters", null);
+                    return !value.HasValue || value.Value == 0;
+                }
             }
             catch (Exception)
             {
@@ -606,8 +620,9 @@ namespace System.Diagnostics.Tests
             return true;
         }
 
-        [PlatformSpecific(TestPlatforms.Windows)]
+        [PlatformSpecific(TestPlatforms.Windows)]  // Behavior differs on Windows and Unix
         [ConditionalTheory(nameof(ProcessPeformanceCounterEnabled))]
+        [SkipOnTargetFramework(TargetFrameworkMonikers.UapAot, "https://github.com/dotnet/corefx/issues/18212")]
         [MemberData(nameof(GetTestProcess))]
         public void TestProcessOnRemoteMachineWindows(Process currentProcess, Process remoteProcess)
         {
@@ -619,7 +634,7 @@ namespace System.Diagnostics.Tests
             Assert.Throws<NotSupportedException>(() => remoteProcess.MainModule);
         }
 
-        [Fact, PlatformSpecific(TestPlatforms.AnyUnix)]
+        [Fact, PlatformSpecific(TestPlatforms.AnyUnix)]  // Behavior differs on Windows and Unix
         public void TestProcessOnRemoteMachineUnix()
         {
             Process currentProcess = Process.GetCurrentProcess();
@@ -734,7 +749,7 @@ namespace System.Diagnostics.Tests
             Assert.NotEqual(0, e.NativeErrorCode);
         }
 
-        [PlatformSpecific(TestPlatforms.Windows)]
+        [PlatformSpecific(TestPlatforms.Windows)]  // Needs permissions on Unix
         // NativeErrorCode not 193 on Windows Nano for ERROR_BAD_EXE_FORMAT, issue #10290
         [ConditionalFact(nameof(PlatformDetection) + "." + nameof(PlatformDetection.IsNotWindowsNanoServer))]
         public void TestStartOnWindowsWithBadFileFormat()
@@ -746,34 +761,243 @@ namespace System.Diagnostics.Tests
             Assert.NotEqual(0, e.NativeErrorCode);
         }
 
-        [PlatformSpecific(TestPlatforms.AnyUnix)]
         [Fact]
-        public void TestStartOnUnixWithBadPermissions()
+        [PlatformSpecific(TestPlatforms.Linux | TestPlatforms.Windows)]  // Expected process HandleCounts differs on OSX
+        public void TestHandleCount()
         {
-            string path = GetTestFilePath();
-            File.Create(path).Dispose();
-            Assert.Equal(0, chmod(path, 644)); // no execute permissions
-
-            Win32Exception e = Assert.Throws<Win32Exception>(() => Process.Start(path));
-            Assert.NotEqual(0, e.NativeErrorCode);
-        }
-
-        [PlatformSpecific(TestPlatforms.AnyUnix)]
-        [Fact]
-        public void TestStartOnUnixWithBadFormat()
-        {
-            string path = GetTestFilePath();
-            File.Create(path).Dispose();
-            Assert.Equal(0, chmod(path, 744)); // execute permissions
-
-            using (Process p = Process.Start(path))
+            using (Process p = Process.GetCurrentProcess())
             {
-                p.WaitForExit();
-                Assert.NotEqual(0, p.ExitCode);
+                Assert.True(p.HandleCount > 0);
             }
         }
 
-        [DllImport("libc")]
-        private static extern int chmod(string path, int mode);
+        [Fact]
+        [PlatformSpecific(TestPlatforms.OSX)]  // Expected process HandleCounts differs on OSX
+        public void TestHandleCount_OSX()
+        {
+            using (Process p = Process.GetCurrentProcess())
+            {
+                Assert.Equal(0, p.HandleCount);
+            }
+        }
+
+        [Fact]
+        [PlatformSpecific(TestPlatforms.Linux | TestPlatforms.Windows)]  // Expected process HandleCounts differs on OSX
+        public void HandleCountChanges()
+        {
+            RemoteInvoke(() =>
+            {
+                Process p = Process.GetCurrentProcess();
+                int handleCount = p.HandleCount;
+                using (var fs1 = File.Open(GetTestFilePath(), FileMode.OpenOrCreate))
+                using (var fs2 = File.Open(GetTestFilePath(), FileMode.OpenOrCreate))
+                using (var fs3 = File.Open(GetTestFilePath(), FileMode.OpenOrCreate))
+                {
+                    p.Refresh();
+                    int secondHandleCount = p.HandleCount;
+                    Assert.True(handleCount < secondHandleCount);
+                    handleCount = secondHandleCount;
+                }
+                p.Refresh();
+                int thirdHandleCount = p.HandleCount;
+                Assert.True(thirdHandleCount < handleCount);
+                return SuccessExitCode;
+            }).Dispose();
+        }
+
+        [PlatformSpecific(TestPlatforms.Windows)]  // Needs to get the process Id from OS
+        [Fact]
+        public void TestRespondingWindows()
+        {
+            using (Process p = Process.GetCurrentProcess())
+            {
+                Assert.True(p.Responding);
+            }
+        }
+
+        [PlatformSpecific(TestPlatforms.AnyUnix)]  // Needs to get the process Id from OS
+        [Fact]
+        private void TestWindowApisUnix()
+        {
+            // This tests the hardcoded implementations of these APIs on Unix.
+            using (Process p = Process.GetCurrentProcess())
+            {
+                Assert.True(p.Responding);
+                Assert.Equal(string.Empty, p.MainWindowTitle);
+                Assert.False(p.CloseMainWindow());
+                Assert.Throws<InvalidOperationException>(()=>p.WaitForInputIdle());
+            }
+        }
+
+        [Fact]
+        public void TestNonpagedSystemMemorySize()
+        {
+#pragma warning disable 0618
+            AssertNonZeroWindowsZeroUnix(_process.NonpagedSystemMemorySize);
+#pragma warning restore 0618
+        }
+
+        [Fact]
+        public void TestPagedMemorySize()
+        {
+#pragma warning disable 0618
+            AssertNonZeroWindowsZeroUnix(_process.PagedMemorySize);
+#pragma warning restore 0618
+        }
+
+        [Fact]
+        public void TestPagedSystemMemorySize()
+        {
+#pragma warning disable 0618
+            AssertNonZeroWindowsZeroUnix(_process.PagedSystemMemorySize);
+#pragma warning restore 0618
+        }
+
+        [Fact]
+        public void TestPeakPagedMemorySize()
+        {
+#pragma warning disable 0618
+            AssertNonZeroWindowsZeroUnix(_process.PeakPagedMemorySize);
+#pragma warning restore 0618
+        }
+
+        [Fact]
+        public void TestPeakVirtualMemorySize()
+        {
+#pragma warning disable 0618
+            AssertNonZeroWindowsZeroUnix(_process.PeakVirtualMemorySize);
+#pragma warning restore 0618
+        }
+
+        [Fact]
+        public void TestPeakWorkingSet()
+        {
+#pragma warning disable 0618
+            AssertNonZeroWindowsZeroUnix(_process.PeakWorkingSet);
+#pragma warning restore 0618
+        }
+
+        [Fact]
+        public void TestPrivateMemorySize()
+        {
+#pragma warning disable 0618
+            AssertNonZeroWindowsZeroUnix(_process.PrivateMemorySize);
+#pragma warning restore 0618
+        }
+
+        [Fact]
+        public void TestVirtualMemorySize()
+        {
+#pragma warning disable 0618
+            Assert.Equal(unchecked((int)_process.VirtualMemorySize64), _process.VirtualMemorySize);
+#pragma warning restore 0618
+        }
+
+        [Fact]
+        public void TestWorkingSet()
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                // resident memory can be 0 on OSX.
+#pragma warning disable 0618
+                Assert.True(_process.WorkingSet >= 0);
+#pragma warning restore 0618
+                return;
+            }
+
+#pragma warning disable 0618
+            Assert.True(_process.WorkingSet > 0);
+#pragma warning restore 0618
+        }
+
+        [Fact]
+        [PlatformSpecific(TestPlatforms.Windows)]  // Starting process with authentication not supported on Unix
+        public void Process_StartInvalidNamesTest()
+        {
+            Assert.Throws<InvalidOperationException>(() => Process.Start(null, "userName", new SecureString(), "thisDomain"));
+            Assert.Throws<InvalidOperationException>(() => Process.Start(string.Empty, "userName", new SecureString(), "thisDomain"));
+            Assert.Throws<Win32Exception>(() => Process.Start("exe", string.Empty, new SecureString(), "thisDomain"));
+        }
+
+        [Fact]
+        [PlatformSpecific(TestPlatforms.Windows)]  // Starting process with authentication not supported on Unix
+        public void Process_StartWithInvalidUserNamePassword()
+        {
+            SecureString password = AsSecureString("Value");
+            Assert.Throws<Win32Exception>(() => Process.Start(GetCurrentProcessName(), "userName", password, "thisDomain"));
+            Assert.Throws<Win32Exception>(() => Process.Start(GetCurrentProcessName(), Environment.UserName, password, Environment.UserDomainName));
+        }
+
+        [Fact]
+        [PlatformSpecific(TestPlatforms.Windows)]  // Starting process with authentication not supported on Unix
+        public void Process_StartTest()
+        {
+            string currentProcessName = GetCurrentProcessName();
+            string userName = string.Empty;
+            string domain = "thisDomain";
+            SecureString password = AsSecureString("Value");
+
+            Process p = Process.Start(currentProcessName, userName, password, domain);
+            Assert.NotNull(p);
+            Assert.Equal(currentProcessName, p.StartInfo.FileName);
+            Assert.Equal(userName, p.StartInfo.UserName);
+            Assert.Same(password, p.StartInfo.Password);
+            Assert.Equal(domain, p.StartInfo.Domain);
+            p.Kill();
+            password.Dispose();
+        }
+
+        [Fact]
+        [PlatformSpecific(TestPlatforms.Windows)]  // Starting process with authentication not supported on Unix
+        public void Process_StartWithArgumentsTest()
+        {
+            string currentProcessName = GetCurrentProcessName();
+            string userName = string.Empty;
+            string domain = Environment.UserDomainName;
+            string arguments = "-xml testResults.xml";
+            SecureString password = AsSecureString("Value");
+
+            Process p = Process.Start(currentProcessName, arguments, userName, password, domain);
+            Assert.NotNull(p);
+            Assert.Equal(currentProcessName, p.StartInfo.FileName);
+            Assert.Equal(arguments, p.StartInfo.Arguments);
+            Assert.Equal(userName, p.StartInfo.UserName);
+            Assert.Same(password, p.StartInfo.Password);
+            Assert.Equal(domain, p.StartInfo.Domain);
+            p.Kill();
+            password.Dispose();
+        }
+
+        [Fact]
+        [PlatformSpecific(TestPlatforms.Windows)]  // Starting process with authentication not supported on Unix
+        public void Process_StartWithDuplicatePassword()
+        {
+            ProcessStartInfo psi = new ProcessStartInfo();
+            psi.FileName = "exe";
+            psi.UserName = "dummyUser";
+            psi.PasswordInClearText = "Value";
+            psi.Password = AsSecureString("Value");
+
+            Process p = new Process();
+            p.StartInfo = psi;
+            Assert.Throws<ArgumentException>(() => p.Start());
+        }
+
+        private string GetCurrentProcessName()
+        {
+            return $"{Process.GetCurrentProcess().ProcessName}.exe";
+        }
+
+        private SecureString AsSecureString(string str)
+        {
+            SecureString secureString = new SecureString();
+
+            foreach (var ch in str)
+            {
+                secureString.AppendChar(ch);
+            }
+
+            return secureString;
+        }
     }
 }

@@ -8,13 +8,56 @@ using System.Runtime.CompilerServices;
 namespace System.Collections.Generic
 {
     /// <summary>
+    /// Represents a position within a <see cref="LargeArrayBuilder{T}"/>.
+    /// </summary>
+    [DebuggerDisplay("{DebuggerDisplay,nq}")]
+    internal struct CopyPosition
+    {
+        /// <summary>
+        /// Constructs a new <see cref="CopyPosition"/>.
+        /// </summary>
+        /// <param name="row">The index of the buffer to select.</param>
+        /// <param name="column">The index within the buffer to select.</param>
+        internal CopyPosition(int row, int column)
+        {
+            Debug.Assert(row >= 0);
+            Debug.Assert(column >= 0);
+
+            Row = row;
+            Column = column;
+        }
+
+        /// <summary>
+        /// Represents a position at the start of a <see cref="LargeArrayBuilder{T}"/>.
+        /// </summary>
+        public static CopyPosition Start => default(CopyPosition);
+
+        /// <summary>
+        /// The index of the buffer to select.
+        /// </summary>
+        internal int Row { get; }
+
+        /// <summary>
+        /// The index within the buffer to select.
+        /// </summary>
+        internal int Column { get; }
+
+        /// <summary>
+        /// Gets a string suitable for display in the debugger.
+        /// </summary>
+        private string DebuggerDisplay => $"[{Row}, {Column}]";
+    }
+
+    /// <summary>
     /// Helper type for building dynamically-sized arrays while minimizing allocations and copying.
     /// </summary>
+    /// <typeparam name="T">The element type.</typeparam>
     internal struct LargeArrayBuilder<T>
     {
         private const int StartingCapacity = 4;
-        private const int ResizeLimit = 32;
+        private const int ResizeLimit = 8;
 
+        private readonly int _maxCapacity;  // The maximum capacity this builder can have.
         private T[] _first;                 // The first buffer we store items in. Resized until ResizeLimit.
         private ArrayBuilder<T[]> _buffers; // After ResizeLimit * 2, we store previous buffers we've filled out here.
         private T[] _current;               // Current buffer we're reading into. If _count <= ResizeLimit, this is _first.
@@ -26,15 +69,27 @@ namespace System.Collections.Generic
         /// </summary>
         /// <param name="initialize">Pass <c>true</c>.</param>
         public LargeArrayBuilder(bool initialize)
+            : this(maxCapacity: int.MaxValue)
         {
             // This is a workaround for C# not having parameterless struct constructors yet.
             // Once it gets them, replace this with a parameterless constructor.
             Debug.Assert(initialize);
+        }
+
+        /// <summary>
+        /// Constructs a new builder with the specified maximum capacity.
+        /// </summary>
+        /// <param name="maxCapacity">The maximum capacity this builder can have.</param>
+        /// <remarks>
+        /// Do not add more than <paramref name="maxCapacity"/> items to this builder.
+        /// </remarks>
+        public LargeArrayBuilder(int maxCapacity)
+            : this()
+        {
+            Debug.Assert(maxCapacity >= 0);
 
             _first = _current = Array.Empty<T>();
-            _buffers = default(ArrayBuilder<T[]>);
-            _index = 0;
-            _count = 0;
+            _maxCapacity = maxCapacity;
         }
 
         /// <summary>
@@ -53,6 +108,8 @@ namespace System.Collections.Generic
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Add(T item)
         {
+            Debug.Assert(_maxCapacity > _count);
+
             if (_index == _current.Length)
             {
                 AllocateBuffer();
@@ -66,6 +123,10 @@ namespace System.Collections.Generic
         /// Adds a range of items to this builder.
         /// </summary>
         /// <param name="items">The sequence to add.</param>
+        /// <remarks>
+        /// It is the caller's responsibility to ensure that adding <paramref name="items"/>
+        /// does not cause the builder to exceed its maximum capacity.
+        /// </remarks>
         public void AddRange(IEnumerable<T> items)
         {
             Debug.Assert(items != null);
@@ -103,20 +164,19 @@ namespace System.Collections.Generic
         /// Copies the contents of this builder to the specified array.
         /// </summary>
         /// <param name="array">The destination array.</param>
-        /// <param name="arrayIndex">The index in <see cref="array"/> to start copying.</param>
+        /// <param name="arrayIndex">The index in <see cref="array"/> to start copying to.</param>
         /// <param name="count">The number of items to copy.</param>
         public void CopyTo(T[] array, int arrayIndex, int count)
         {
-            Debug.Assert(array != null);
             Debug.Assert(arrayIndex >= 0);
             Debug.Assert(count >= 0 && count <= Count);
-            Debug.Assert(array.Length - arrayIndex >= count);
-            
-            for (int i = -1; count > 0; i++)
+            Debug.Assert(array?.Length - arrayIndex >= count);
+
+            for (int i = 0; count > 0; i++)
             {
                 // Find the buffer we're copying from.
-                T[] buffer = i < 0 ? _first : i < _buffers.Count ? _buffers[i] : _current;
-                
+                T[] buffer = GetBuffer(index: i);
+
                 // Copy until we satisfy count, or we reach the end of the buffer.
                 int toCopy = Math.Min(count, buffer.Length);
                 Array.Copy(buffer, 0, array, arrayIndex, toCopy);
@@ -125,6 +185,69 @@ namespace System.Collections.Generic
                 count -= toCopy;
                 arrayIndex += toCopy;
             }
+        }
+        
+        /// <summary>
+        /// Copies the contents of this builder to the specified array.
+        /// </summary>
+        /// <param name="position">The position in this builder to start copying from.</param>
+        /// <param name="array">The destination array.</param>
+        /// <param name="arrayIndex">The index in <see cref="array"/> to start copying to.</param>
+        /// <param name="count">The number of items to copy.</param>
+        /// <returns>The position in this builder that was copied up to.</returns>
+        public CopyPosition CopyTo(CopyPosition position, T[] array, int arrayIndex, int count)
+        {
+            Debug.Assert(arrayIndex >= 0);
+            Debug.Assert(count >= 0 && count <= Count);
+            Debug.Assert(array?.Length - arrayIndex >= count);
+
+            // Go through each buffer, which contains one 'row' of items.
+            // The index in each buffer is referred to as the 'column'.
+
+            /*
+             * Visual representation:
+             * 
+             *       C0   C1   C2 ..  C31 ..   C63
+             * R0:  [0]  [1]  [2] .. [31]
+             * R1: [32] [33] [34] .. [63]
+             * R2: [64] [65] [66] .. [95] .. [127]
+             */
+
+            int row = position.Row;
+            int column = position.Column;
+
+            for (; count > 0; row++, column = 0)
+            {
+                T[] buffer = GetBuffer(index: row);
+
+                // During this iteration, copy until we satisfy `count` or reach the
+                // end of the current buffer.
+                int copyCount = Math.Min(buffer.Length, count);
+
+                if (copyCount > 0)
+                {
+                    Array.Copy(buffer, column, array, arrayIndex, copyCount);
+
+                    arrayIndex += copyCount;
+                    count -= copyCount;
+                    column += copyCount;
+                }
+            }
+
+            return new CopyPosition(row: row, column: column);
+        }
+
+        /// <summary>
+        /// Retrieves the buffer at the specified index.
+        /// </summary>
+        /// <param name="index">The index of the buffer.</param>
+        public T[] GetBuffer(int index)
+        {
+            Debug.Assert(index >= 0 && index < _buffers.Count + 2);
+
+            return index == 0 ? _first :
+                index <= _buffers.Count ? _buffers[index - 1] :
+                _current;
         }
 
         /// <summary>
@@ -139,21 +262,33 @@ namespace System.Collections.Generic
         public void SlowAdd(T item) => Add(item);
 
         /// <summary>
-        /// Returns an array representation of this builder.
+        /// Creates an array from the contents of this builder.
         /// </summary>
         public T[] ToArray()
         {
-            if (_count == _first.Length)
+            T[] array;
+            if (TryMove(out array))
             {
                 // No resizing to do.
-                return _first;
+                return array;
             }
 
-            var array = new T[_count];
+            array = new T[_count];
             CopyTo(array, 0, _count);
             return array;
         }
-        
+
+        /// <summary>
+        /// Attempts to transfer this builder into an array without copying.
+        /// </summary>
+        /// <param name="array">The transferred array, if the operation succeeded.</param>
+        /// <returns><c>true</c> if the operation succeeded; otherwise, <c>false</c>.</returns>
+        public bool TryMove(out T[] array)
+        {
+            array = _first;
+            return _count == _first.Length;
+        }
+
         private void AllocateBuffer()
         {
             // - On the first few adds, simply resize _first.
@@ -161,7 +296,9 @@ namespace System.Collections.Generic
             //   and start reading into _current. Set _index to 0.
             // - When _current runs out of space, add it to _buffers and repeat the
             //   above step, except with _current.Length * 2.
+            // - Make sure we never pass _maxCapacity in all of the above steps.
 
+            Debug.Assert((uint)_maxCapacity > (uint)_count);
             Debug.Assert(_index == _current.Length, $"{nameof(AllocateBuffer)} was called, but there's more space.");
 
             // If _count is int.MinValue, we want to go down the other path which will raise an exception.
@@ -170,7 +307,7 @@ namespace System.Collections.Generic
                 // We haven't passed ResizeLimit. Resize _first, copying over the previous items.
                 Debug.Assert(_current == _first && _count == _first.Length);
 
-                int nextCapacity = _count == 0 ? StartingCapacity : _count * 2;
+                int nextCapacity = Math.Min(_count == 0 ? StartingCapacity : _count * 2, _maxCapacity);
 
                 _current = new T[nextCapacity];
                 Array.Copy(_first, 0, _current, 0, _count);
@@ -178,6 +315,7 @@ namespace System.Collections.Generic
             }
             else
             {
+                Debug.Assert(_maxCapacity > ResizeLimit);
                 Debug.Assert(_count == ResizeLimit ^ _current != _first);
 
                 int nextCapacity;
@@ -187,8 +325,18 @@ namespace System.Collections.Generic
                 }
                 else
                 {
+                    // Example scenario: Let's say _count == 64.
+                    // Then our buffers look like this: | 8 | 8 | 16 | 32 |
+                    // As you can see, our count will be just double the last buffer.
+                    // Now, say _maxCapacity is 100. We will find the right amount to allocate by
+                    // doing min(64, 100 - 64). The lhs represents double the last buffer,
+                    // the rhs the limit minus the amount we've already allocated.
+
+                    Debug.Assert(_count >= ResizeLimit * 2);
+                    Debug.Assert(_count == _current.Length * 2);
+
                     _buffers.Add(_current);
-                    nextCapacity = _current.Length * 2;
+                    nextCapacity = Math.Min(_count, _maxCapacity - _count);
                 }
 
                 _current = new T[nextCapacity];

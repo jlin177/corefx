@@ -137,7 +137,7 @@ namespace System.Linq.Expressions
             else
             {
                 if (expression == null) throw Error.OnlyStaticFieldsHaveNullInstance(nameof(field));
-                RequiresCanRead(expression, nameof(expression));
+                ExpressionUtils.RequiresCanRead(expression, nameof(expression));
                 if (!TypeUtils.AreReferenceAssignable(field.DeclaringType, expression.Type))
                 {
                     throw Error.FieldInfoNotDefinedForType(field.DeclaringType, field.Name, expression.Type);
@@ -154,15 +154,12 @@ namespace System.Linq.Expressions
         /// <returns>The created <see cref="MemberExpression"/>.</returns>
         public static MemberExpression Field(Expression expression, string fieldName)
         {
-            RequiresCanRead(expression, nameof(expression));
+            ExpressionUtils.RequiresCanRead(expression, nameof(expression));
             ContractUtils.RequiresNotNull(fieldName, nameof(fieldName));
 
             // bind to public names first
-            FieldInfo fi = expression.Type.GetField(fieldName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase | BindingFlags.FlattenHierarchy);
-            if (fi == null)
-            {
-                fi = expression.Type.GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.IgnoreCase | BindingFlags.FlattenHierarchy);
-            }
+            FieldInfo fi = expression.Type.GetField(fieldName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase | BindingFlags.FlattenHierarchy)
+                           ?? expression.Type.GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.IgnoreCase | BindingFlags.FlattenHierarchy);
             if (fi == null)
             {
                 throw Error.InstanceFieldNotDefinedForType(fieldName, expression.Type);
@@ -184,11 +181,8 @@ namespace System.Linq.Expressions
             ContractUtils.RequiresNotNull(type, nameof(type));
 
             // bind to public names first
-            FieldInfo fi = type.GetField(fieldName, BindingFlags.Static | BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase | BindingFlags.FlattenHierarchy);
-            if (fi == null)
-            {
-                fi = type.GetField(fieldName, BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.IgnoreCase | BindingFlags.FlattenHierarchy);
-            }
+            FieldInfo fi = type.GetField(fieldName, BindingFlags.Static | BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase | BindingFlags.FlattenHierarchy)
+                           ?? type.GetField(fieldName, BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.IgnoreCase | BindingFlags.FlattenHierarchy);
 
             if (fi == null)
             {
@@ -209,14 +203,11 @@ namespace System.Linq.Expressions
         /// <returns>The created <see cref="MemberExpression"/>.</returns>
         public static MemberExpression Property(Expression expression, string propertyName)
         {
-            RequiresCanRead(expression, nameof(expression));
+            ExpressionUtils.RequiresCanRead(expression, nameof(expression));
             ContractUtils.RequiresNotNull(propertyName, nameof(propertyName));
             // bind to public names first
-            PropertyInfo pi = expression.Type.GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase | BindingFlags.FlattenHierarchy);
-            if (pi == null)
-            {
-                pi = expression.Type.GetProperty(propertyName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.IgnoreCase | BindingFlags.FlattenHierarchy);
-            }
+            PropertyInfo pi = expression.Type.GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase | BindingFlags.FlattenHierarchy)
+                              ?? expression.Type.GetProperty(propertyName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.IgnoreCase | BindingFlags.FlattenHierarchy);
             if (pi == null)
             {
                 throw Error.InstancePropertyNotDefinedForType(propertyName, expression.Type, nameof(propertyName));
@@ -236,11 +227,8 @@ namespace System.Linq.Expressions
             ContractUtils.RequiresNotNull(type, nameof(type));
             ContractUtils.RequiresNotNull(propertyName, nameof(propertyName));
             // bind to public names first
-            PropertyInfo pi = type.GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.IgnoreCase | BindingFlags.FlattenHierarchy);
-            if (pi == null)
-            {
-                pi = type.GetProperty(propertyName, BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.IgnoreCase | BindingFlags.FlattenHierarchy);
-            }
+            PropertyInfo pi = type.GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.IgnoreCase | BindingFlags.FlattenHierarchy)
+                              ?? type.GetProperty(propertyName, BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.IgnoreCase | BindingFlags.FlattenHierarchy);
             if (pi == null)
             {
                 throw Error.PropertyNotDefinedForType(propertyName, type, nameof(propertyName));
@@ -286,12 +274,14 @@ namespace System.Linq.Expressions
             else
             {
                 if (expression == null) throw Error.OnlyStaticPropertiesHaveNullInstance(nameof(property));
-                RequiresCanRead(expression, nameof(expression));
+                ExpressionUtils.RequiresCanRead(expression, nameof(expression));
                 if (!TypeUtils.IsValidInstanceType(property, expression.Type))
                 {
                     throw Error.PropertyNotDefinedForType(property, expression.Type, nameof(property));
                 }
             }
+
+            ValidateMethodInfo(mi, nameof(property));
 
             return MemberExpression.Make(expression, property);
         }
@@ -312,20 +302,24 @@ namespace System.Linq.Expressions
         private static PropertyInfo GetProperty(MethodInfo mi, string paramName, int index = -1)
         {
             Type type = mi.DeclaringType;
-            BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic;
-            flags |= (mi.IsStatic) ? BindingFlags.Static : BindingFlags.Instance;
-            PropertyInfo[] props = type.GetProperties(flags);
-            foreach (PropertyInfo pi in props)
+            if (type != null)
             {
-                if (pi.CanRead && CheckMethod(mi, pi.GetGetMethod(nonPublic: true)))
+                BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic;
+                flags |= (mi.IsStatic) ? BindingFlags.Static : BindingFlags.Instance;
+                PropertyInfo[] props = type.GetProperties(flags);
+                foreach (PropertyInfo pi in props)
                 {
-                    return pi;
-                }
-                if (pi.CanWrite && CheckMethod(mi, pi.GetSetMethod(nonPublic: true)))
-                {
-                    return pi;
+                    if (pi.CanRead && CheckMethod(mi, pi.GetGetMethod(nonPublic: true)))
+                    {
+                        return pi;
+                    }
+                    if (pi.CanWrite && CheckMethod(mi, pi.GetSetMethod(nonPublic: true)))
+                    {
+                        return pi;
+                    }
                 }
             }
+
             throw Error.MethodNotPropertyAccessor(mi.DeclaringType, mi.Name, paramName, index);
         }
 
@@ -335,11 +329,11 @@ namespace System.Linq.Expressions
             {
                 return true;
             }
-            // If the type is an interface then the handle for the method got by the compiler will not be the 
+            // If the type is an interface then the handle for the method got by the compiler will not be the
             // same as that returned by reflection.
             // Check for this condition and try and get the method from reflection.
             Type type = method.DeclaringType;
-            if (type.GetTypeInfo().IsInterface && method.Name == propertyMethod.Name && type.GetMethod(method.Name) == propertyMethod)
+            if (type.IsInterface && method.Name == propertyMethod.Name && type.GetMethod(method.Name) == propertyMethod)
             {
                 return true;
             }
@@ -356,7 +350,7 @@ namespace System.Linq.Expressions
         /// <returns>The created <see cref="MemberExpression"/>.</returns>
         public static MemberExpression PropertyOrField(Expression expression, string propertyOrFieldName)
         {
-            RequiresCanRead(expression, nameof(expression));
+            ExpressionUtils.RequiresCanRead(expression, nameof(expression));
             // bind to public names first
             PropertyInfo pi = expression.Type.GetProperty(propertyOrFieldName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase | BindingFlags.FlattenHierarchy);
             if (pi != null)

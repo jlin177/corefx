@@ -15,13 +15,7 @@ namespace System.ComponentModel
         /// <summary>
         /// Determines whether this editor will attempt to convert hex (0x or #) strings
         /// </summary>
-        internal virtual bool AllowHex
-        {
-            get
-            {
-                return true;
-            }
-        }
+        internal virtual bool AllowHex => true;
 
         /// <summary>
         /// The Type this converter is targeting (e.g. Int16, UInt32, etc.)
@@ -117,7 +111,7 @@ namespace System.ComponentModel
                 throw new ArgumentNullException(nameof(destinationType));
             }
 
-            if (destinationType == typeof(string) && value != null && TargetType.GetTypeInfo().IsAssignableFrom(value.GetType().GetTypeInfo()))
+            if (destinationType == typeof(string) && value != null && TargetType.IsInstanceOfType(value))
             {
                 if (culture == null)
                 {
@@ -127,7 +121,7 @@ namespace System.ComponentModel
                 return ToString(value, formatInfo);
             }
 
-            if (destinationType.GetTypeInfo().IsPrimitive)
+            if (destinationType.IsPrimitive)
             {
                 return Convert.ChangeType(value, destinationType, culture);
             }
@@ -136,7 +130,7 @@ namespace System.ComponentModel
 
         public override bool CanConvertTo(ITypeDescriptorContext context, Type destinationType)
         {
-            return base.CanConvertTo(context, destinationType) || destinationType.GetTypeInfo().IsPrimitive;
+            return base.CanConvertTo(context, destinationType) || destinationType.IsPrimitive;
         }
     }
 }

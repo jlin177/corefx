@@ -4,12 +4,14 @@
 
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
+using System.IO;
 using System.Text;
 using Xunit;
 
 namespace System.Net.Tests
 {
-    public class WebUtilityTests
+    public partial class WebUtilityTests
     {
         // HtmlEncode + HtmlDecode
         public static IEnumerable<object[]> HtmlDecode_TestData()
@@ -450,6 +452,28 @@ namespace System.Net.Tests
                 builder.Append(char.ConvertFromUtf32(i));
             }
             return builder.ToString();
+        }
+
+        [Theory]
+        [MemberData(nameof(HtmlDecode_TestData))]
+        public static void HtmlDecode_TextWriterOutput(string value, string expected)
+        {
+            if(value == null)
+                expected = string.Empty;
+            StringWriter output = new StringWriter(CultureInfo.InvariantCulture);
+            WebUtility.HtmlDecode(value, output);
+            Assert.Equal(expected, output.ToString());
+        }
+
+        [Theory]
+        [MemberData(nameof(HtmlEncode_TestData))]
+        public static void HtmlEncode_TextWriterOutput(string value, string expected)
+        {
+            if(value == null)
+                expected = string.Empty;
+            StringWriter output = new StringWriter(CultureInfo.InvariantCulture);
+            WebUtility.HtmlEncode(value, output);
+            Assert.Equal(expected, output.ToString());
         }
     }
 }

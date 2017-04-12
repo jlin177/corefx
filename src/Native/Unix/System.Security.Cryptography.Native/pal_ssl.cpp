@@ -3,11 +3,9 @@
 // See the LICENSE file in the project root for more information.
 
 #include "pal_ssl.h"
-#include "pal_crypto_config.h"
 
 #include <assert.h>
 #include <string.h>
-#include <openssl/err.h>
 
 static_assert(PAL_SSL_ERROR_NONE == SSL_ERROR_NONE, "");
 static_assert(PAL_SSL_ERROR_SSL == SSL_ERROR_SSL, "");
@@ -536,26 +534,6 @@ extern "C" void CryptoNative_SslCtxSetClientCAList(SSL_CTX* ctx, X509NameStack* 
 extern "C" void CryptoNative_SslCtxSetClientCertCallback(SSL_CTX* ctx, SslClientCertCallback callback)
 {
     SSL_CTX_set_client_cert_cb(ctx, callback);
-}
-
-extern "C" void CryptoNative_GetStreamSizes(int32_t* header, int32_t* trailer, int32_t* maximumMessage)
-{
-    // This function is kept for compatibility with RC2 builds on a jagged upgrade path.
-    // Removal is tracked via issue #8504.
-    if (header)
-    {
-        *header = SSL3_RT_HEADER_LENGTH;
-    }
-
-    if (trailer)
-    {
-        *trailer = 68;
-    }
-
-    if (maximumMessage)
-    {
-        *maximumMessage = SSL3_RT_MAX_PLAIN_LENGTH;
-    }
 }
 
 extern "C" int32_t CryptoNative_SslAddExtraChainCert(SSL* ssl, X509* x509)

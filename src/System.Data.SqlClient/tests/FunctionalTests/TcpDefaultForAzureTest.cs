@@ -1,4 +1,8 @@
-﻿using System.Diagnostics;
+﻿// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
+
+using System.Diagnostics;
 using Xunit;
 
 namespace System.Data.SqlClient.Tests
@@ -28,9 +32,9 @@ namespace System.Data.SqlClient.Tests
             builder.ConnectTimeout = 1;
         }
 
-
+        [ActiveIssue(16981)]
         [Fact]
-        [PlatformSpecific(TestPlatforms.Windows)]
+        [PlatformSpecific(TestPlatforms.Windows)]  // NP NonAzure connection with no protocol fails correctly on Windows
         public static void NonAzureNoProtocolConnectionTestOnWindows()
         {
             builder.DataSource = InvalidHostname;
@@ -39,7 +43,7 @@ namespace System.Data.SqlClient.Tests
 
 
         [Fact]
-        [PlatformSpecific(TestPlatforms.AnyUnix)]
+        [PlatformSpecific(TestPlatforms.AnyUnix)]  // TCP NonAzure connection with no protocol fails correctly on Unix
         public static void NonAzureNoProtocolConnectionTestOnUnix()
         {
             builder.DataSource = InvalidHostname;
@@ -56,7 +60,7 @@ namespace System.Data.SqlClient.Tests
 
 
         [Fact]
-        [PlatformSpecific(TestPlatforms.Windows)]
+        [PlatformSpecific(TestPlatforms.Windows)]  // NP NonAzure connection fails correctly on Windows
         public static void NonAzureNpConnectionTest()
         {
             builder.DataSource = "np:\\\\" + InvalidHostname + "\\pipe\\sql\\query";
@@ -88,7 +92,7 @@ namespace System.Data.SqlClient.Tests
 
 
         [Fact]
-        [PlatformSpecific(TestPlatforms.Windows)]
+        [PlatformSpecific(TestPlatforms.Windows)]  // NP Azure connection fails correctly on Windows
         public static void AzureNpConnectionTest()
         {
             foreach (string extension in AzureExtensions)
