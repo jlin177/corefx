@@ -196,26 +196,6 @@ namespace Microsoft.CSharp.RuntimeBinder.Semantics
             return rval;
         }
 
-        public ExprThisPointer CreateThis(LocalVariableSymbol pLocal, bool fImplicit)
-        {
-            Debug.Assert(pLocal == null || pLocal.isThis);
-
-            EXPRFLAG flags = EXPRFLAG.EXF_CANTBENULL;
-            if (fImplicit)
-            {
-                flags |= EXPRFLAG.EXF_IMPLICITTHIS;
-            }
-            if (pLocal != null && pLocal.GetType().isStructType())
-            {
-                flags |= EXPRFLAG.EXF_LVALUE;
-            }
-
-            ExprThisPointer rval = new ExprThisPointer();
-            rval.Flags = flags;
-            rval.Local = pLocal;
-            return (rval);
-        }
-
         public ExprBoundLambda CreateAnonymousMethod(AggregateType delegateType)
         {
             Debug.Assert(delegateType == null || delegateType.isDelegateType());
@@ -480,17 +460,6 @@ namespace Microsoft.CSharp.RuntimeBinder.Semantics
             return rval;
         }
 
-        public ExprQuestionMark CreateQuestionMark(Expr pTestExpression, ExprBinOp pConsequence)
-        {
-            Debug.Assert(pTestExpression != null);
-            Debug.Assert(pConsequence != null);
-
-            ExprQuestionMark pResult = new ExprQuestionMark();
-            pResult.TestExpression = pTestExpression;
-            pResult.Consequence = pConsequence;
-            return pResult;
-        }
-
         public ExprArrayIndex CreateArrayIndex(Expr pArray, Expr pIndex)
         {
             CType pType = pArray.Type;
@@ -506,13 +475,6 @@ namespace Microsoft.CSharp.RuntimeBinder.Semantics
             ExprArrayIndex pResult = new ExprArrayIndex(pType);
             pResult.Array = pArray;
             pResult.Index = pIndex;
-            return pResult;
-        }
-
-        public ExprArrayLength CreateArrayLength(Expr pArray)
-        {
-            ExprArrayLength pResult = new ExprArrayLength(GetTypes().GetReqPredefAgg(PredefinedType.PT_INT).getThisType());
-            pResult.Array = pArray;
             return pResult;
         }
 

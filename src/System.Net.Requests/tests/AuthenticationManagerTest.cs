@@ -3,14 +3,14 @@
 // See the LICENSE file in the project root for more information.
 
 using System.Collections;
-using System.Net.Security;
+using System.Diagnostics;
 using Xunit;
 
 #pragma warning disable CS0618 // obsolete warnings
 
 namespace System.Net.Tests
 {
-    public class AuthenticationManagerTest
+    public class AuthenticationManagerTest : RemoteExecutorTestBase
     {
         [SkipOnTargetFramework(TargetFrameworkMonikers.NetFramework, "AuthenticationManager supported on NETFX")]
         [Fact]
@@ -26,14 +26,35 @@ namespace System.Net.Tests
             Assert.Throws<ArgumentNullException>(() => AuthenticationManager.Register(null));
         }
 
+        [ActiveIssue(20136, TargetFrameworkMonikers.Uap)]
         [Fact]
         public void Register_Unregister_ModuleCountUnchanged()
         {
-            int initialCount = GetModuleCount();
-            IAuthenticationModule module = new CustomModule();
-            AuthenticationManager.Register(module);
-            AuthenticationManager.Unregister(module);
-            Assert.Equal(initialCount, GetModuleCount());
+            RemoteInvoke(() =>
+            {
+                int initialCount = GetModuleCount();
+                IAuthenticationModule module = new CustomModule();
+                AuthenticationManager.Register(module);
+                AuthenticationManager.Unregister(module);
+                Assert.Equal(initialCount, GetModuleCount());
+
+                return SuccessExitCode;
+            }).Dispose();           
+        }
+
+        [ActiveIssue(20136, TargetFrameworkMonikers.Uap)]
+        public void Register_UnregisterByScheme_ModuleCountUnchanged()
+        {
+            RemoteInvoke(() =>
+            {
+                int initialCount = GetModuleCount();
+                IAuthenticationModule module = new CustomModule();
+                AuthenticationManager.Register(module);
+                AuthenticationManager.Unregister("custom");
+                Assert.Equal(initialCount, GetModuleCount());
+
+                return SuccessExitCode;
+            }).Dispose();
         }
 
         [Fact]
@@ -45,19 +66,26 @@ namespace System.Net.Tests
             Assert.Equal(PlatformDetection.IsFullFramework ? 5 : 0, count);
         }
 
+        [ActiveIssue(20136, TargetFrameworkMonikers.Uap)]
         [Fact]
         public void CredentialPolicy_Roundtrip()
         {
             Assert.Null(AuthenticationManager.CredentialPolicy);
 
-            ICredentialPolicy cp = new DummyCredentialPolicy();
-            AuthenticationManager.CredentialPolicy = cp;
-            Assert.Same(cp, AuthenticationManager.CredentialPolicy);
+            RemoteInvoke(() =>
+            {
+                ICredentialPolicy cp = new DummyCredentialPolicy();
+                AuthenticationManager.CredentialPolicy = cp;
+                Assert.Same(cp, AuthenticationManager.CredentialPolicy);
 
-            AuthenticationManager.CredentialPolicy = null;
-            Assert.Null(AuthenticationManager.CredentialPolicy);
+                AuthenticationManager.CredentialPolicy = null;
+                Assert.Null(AuthenticationManager.CredentialPolicy);
+
+                return SuccessExitCode;
+            }).Dispose();
         }
 
+        [ActiveIssue(20136, TargetFrameworkMonikers.Uap)]
         [Fact]
         public void CustomTargetNameDictionary_ValidCollection()
         {
@@ -65,16 +93,21 @@ namespace System.Net.Tests
             Assert.Empty(AuthenticationManager.CustomTargetNameDictionary);
             Assert.Same(AuthenticationManager.CustomTargetNameDictionary, AuthenticationManager.CustomTargetNameDictionary);
 
-            string theKey = "http://www.contoso.com";
-            string theValue = "HTTP/www.contoso.com"; 
-            AuthenticationManager.CustomTargetNameDictionary.Add(theKey, theValue);
-            Assert.Equal(theValue, AuthenticationManager.CustomTargetNameDictionary[theKey]);
+            RemoteInvoke(() =>
+            {
+                string theKey = "http://www.contoso.com";
+                string theValue = "HTTP/www.contoso.com";
+                AuthenticationManager.CustomTargetNameDictionary.Add(theKey, theValue);
+                Assert.Equal(theValue, AuthenticationManager.CustomTargetNameDictionary[theKey]);
 
-            AuthenticationManager.CustomTargetNameDictionary.Clear();
-            Assert.Equal(0, AuthenticationManager.CustomTargetNameDictionary.Count);
+                AuthenticationManager.CustomTargetNameDictionary.Clear();
+                Assert.Equal(0, AuthenticationManager.CustomTargetNameDictionary.Count);
+
+                return SuccessExitCode;
+            }).Dispose();            
         }
 
-        private int GetModuleCount()
+        private static int GetModuleCount()
         {
             int count = 0;
             IEnumerator modules = AuthenticationManager.RegisteredModules;
@@ -116,6 +149,5 @@ namespace System.Net.Tests
                 throw new NotImplementedException();
             }
         }    
-    }
-    
+    }    
 }

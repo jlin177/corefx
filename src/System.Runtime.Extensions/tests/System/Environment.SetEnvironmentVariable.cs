@@ -61,12 +61,10 @@ namespace System.Tests
         }
 
         [Theory]
-        [InlineData(EnvironmentVariableTarget.Process)]
-        [InlineData(EnvironmentVariableTarget.Machine)]
-        [InlineData(EnvironmentVariableTarget.User)]
+        [MemberData(nameof(EnvironmentTests.EnvironmentVariableTargets), MemberType = typeof(EnvironmentTests))]
         public void Default(EnvironmentVariableTarget target)
         {
-            const string varName = "Test_SetEnvironmentVariable_Default";
+            string varName = $"Test_SetEnvironmentVariable_Default ({target})";
             const string value = "true";
 
             ExecuteAgainstTarget(target,
@@ -85,12 +83,10 @@ namespace System.Tests
 
 
         [Theory]
-        [InlineData(EnvironmentVariableTarget.Process)]
-        [InlineData(EnvironmentVariableTarget.Machine)]
-        [InlineData(EnvironmentVariableTarget.User)]
+        [MemberData(nameof(EnvironmentTests.EnvironmentVariableTargets), MemberType = typeof(EnvironmentTests))]
         public void ModifyEnvironmentVariable(EnvironmentVariableTarget target)
         {
-            const string varName = "Test_ModifyEnvironmentVariable";
+            string varName = $"Test_ModifyEnvironmentVariable ({target})";
             const string value = "false";
 
             ExecuteAgainstTarget(target,
@@ -107,17 +103,15 @@ namespace System.Tests
             () =>
             {
                 // Clear the test variable
-                Environment.SetEnvironmentVariable(varName, null);
+                Environment.SetEnvironmentVariable(varName, null, target);
             });
         }
 
         [Theory]
-        [InlineData(EnvironmentVariableTarget.Process)]
-        [InlineData(EnvironmentVariableTarget.Machine)]
-        [InlineData(EnvironmentVariableTarget.User)]
+        [MemberData(nameof(EnvironmentTests.EnvironmentVariableTargets), MemberType = typeof(EnvironmentTests))]
         public void ModifyEnvironmentVariable_AndEnumerate(EnvironmentVariableTarget target)
         {
-            const string varName = "Test_ModifyEnvironmentVariable_AndEnumerate";
+            string varName = $"Test_ModifyEnvironmentVariable_AndEnumerate ({target})";
             const string value = "false";
 
             ExecuteAgainstTarget(target,
@@ -142,17 +136,15 @@ namespace System.Tests
             () =>
             {
                 // Clear the test variable
-                Environment.SetEnvironmentVariable(varName, null);
+                Environment.SetEnvironmentVariable(varName, null, target);
             });
         }
 
         [Theory]
-        [InlineData(EnvironmentVariableTarget.Process)]
-        [InlineData(EnvironmentVariableTarget.Machine)]
-        [InlineData(EnvironmentVariableTarget.User)]
+        [MemberData(nameof(EnvironmentTests.EnvironmentVariableTargets), MemberType = typeof(EnvironmentTests))]
         public void DeleteEnvironmentVariable(EnvironmentVariableTarget target)
         {
-            const string varName = "Test_DeleteEnvironmentVariable";
+            string varName = $"Test_DeleteEnvironmentVariable ({target})";
             const string value = "false";
 
             ExecuteAgainstTarget(target,

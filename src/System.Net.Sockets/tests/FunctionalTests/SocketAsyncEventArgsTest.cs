@@ -148,11 +148,30 @@ namespace System.Net.Sockets.Tests
         {
             using (var saea = new SocketAsyncEventArgs())
             {
-                Assert.Throws<ArgumentOutOfRangeException>("offset", () => saea.SetBuffer(new byte[1], -1, 0));
-                Assert.Throws<ArgumentOutOfRangeException>("offset", () => saea.SetBuffer(new byte[1], 2, 0));
-                Assert.Throws<ArgumentOutOfRangeException>("count", () => saea.SetBuffer(new byte[1], 0, -1));
-                Assert.Throws<ArgumentOutOfRangeException>("count", () => saea.SetBuffer(new byte[1], 0, 2));
-                Assert.Throws<ArgumentOutOfRangeException>("count", () => saea.SetBuffer(new byte[1], 1, 2));
+                AssertExtensions.Throws<ArgumentOutOfRangeException>("offset", () => saea.SetBuffer(new byte[1], -1, 0));
+                AssertExtensions.Throws<ArgumentOutOfRangeException>("offset", () => saea.SetBuffer(new byte[1], 2, 0));
+                AssertExtensions.Throws<ArgumentOutOfRangeException>("count", () => saea.SetBuffer(new byte[1], 0, -1));
+                AssertExtensions.Throws<ArgumentOutOfRangeException>("count", () => saea.SetBuffer(new byte[1], 0, 2));
+                AssertExtensions.Throws<ArgumentOutOfRangeException>("count", () => saea.SetBuffer(new byte[1], 1, 2));
+            }
+        }
+
+        [Fact]
+        public void SetBuffer_NoBuffer_ResetsCountOffset()
+        {
+            using (var saea = new SocketAsyncEventArgs())
+            {
+                saea.SetBuffer(42, 84);
+                Assert.Equal(0, saea.Offset);
+                Assert.Equal(0, saea.Count);
+
+                saea.SetBuffer(new byte[3], 1, 2);
+                Assert.Equal(1, saea.Offset);
+                Assert.Equal(2, saea.Count);
+
+                saea.SetBuffer(null, 1, 2);
+                Assert.Equal(0, saea.Offset);
+                Assert.Equal(0, saea.Count);
             }
         }
 

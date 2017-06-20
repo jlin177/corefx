@@ -99,7 +99,7 @@ namespace System.Threading.Tests
         [Fact]
         public void OpenExisting_InvalidNames()
         {
-            Assert.Throws<ArgumentNullException>("name", () => Mutex.OpenExisting(null));
+            AssertExtensions.Throws<ArgumentNullException>("name", () => Mutex.OpenExisting(null));
             Assert.Throws<ArgumentException>(() => Mutex.OpenExisting(string.Empty));
             Assert.Throws<ArgumentException>(() => Mutex.OpenExisting(new string('a', 10000)));
         }
@@ -141,6 +141,7 @@ namespace System.Threading.Tests
 
         [Theory]
         [MemberData(nameof(AbandonExisting_MemberData))]
+        [ActiveIssue(21151, TargetFrameworkMonikers.Uap)]
         public void AbandonExisting(string name, int waitType)
         {
             using (var m = new Mutex(false, name))
@@ -171,6 +172,7 @@ namespace System.Threading.Tests
         [InlineData("")]
         [InlineData("Local\\")]
         [InlineData("Global\\")]
+        [ActiveIssue(21151, TargetFrameworkMonikers.Uap)]
         public void CrossProcess_NamedMutex_ProtectedFileAccessAtomic(string prefix)
         {
             string mutexName = prefix + Guid.NewGuid().ToString("N");

@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for more information.
 
 using System.Net.Http;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -29,12 +30,12 @@ namespace System.Net.Tests
             return context.Response;
         }
 
-        public async Task<HttpListenerRequest> GetRequest()
+        public async Task<HttpListenerRequest> GetRequest(bool chunked)
         {
             // We need to create a mock request to give the HttpListener a context.
             Task<HttpListenerContext> serverContext = _listener.GetContextAsync();
 
-            _client.DefaultRequestHeaders.TransferEncodingChunked = true;
+            _client.DefaultRequestHeaders.TransferEncodingChunked = chunked;
             Task<HttpResponseMessage> clientTask = _client.PostAsync(_listeningUrl, new StringContent("Hello"));
 
             HttpListenerContext context = await serverContext;
@@ -53,5 +54,25 @@ namespace System.Net.Tests
         public WaitHandle AsyncWaitHandle => throw new NotImplementedException();
         public bool CompletedSynchronously => throw new NotImplementedException();
         public bool IsCompleted => throw new NotImplementedException();
+    }
+
+    public static class Helpers
+    {
+        public static bool IsWindowsImplementation { get; } =
+            (TypeExists("Interop+HttpApi") || TypeExists("System.Net.UnsafeNclNativeMethods")); // types only in Windows netcoreapp/netfx builds, respectively
+
+        public static bool IsManagedImplementation => TypeExists("System.Net.WebSockets.ManagedWebSocket"); // type only in managed build
+
+        private static bool TypeExists(string name) => typeof(HttpListener).Assembly.GetType(name, throwOnError: false, ignoreCase: false) != null;
+
+        public static void WaitForSocketShutdown(Socket socket)
+        {
+            socket.Close();
+        }
+
+        public static bool SocketConnected(Socket socket)
+        {
+            return !(socket.Poll(100, SelectMode.SelectRead) && socket.Available == 0);
+        }
     }
 }

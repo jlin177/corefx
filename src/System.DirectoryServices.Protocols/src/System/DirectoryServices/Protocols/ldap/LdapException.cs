@@ -73,15 +73,12 @@ namespace System.DirectoryServices.Protocols
         }
     }
 
-    [Serializable]
     public class LdapException : DirectoryException, ISerializable
     {
         private int _errorCode;
         private string _serverErrorMessage;
         internal PartialResultsCollection results = new PartialResultsCollection();
-        protected LdapException(SerializationInfo info, StreamingContext context) : base(info, context)
-        {
-        }
+        protected LdapException(SerializationInfo info, StreamingContext context) : base(info, context) { }
 
         public LdapException() : base() { }
 
@@ -133,20 +130,16 @@ namespace System.DirectoryServices.Protocols
                 return this.results;
             }
         }
-
-        [SecurityPermissionAttribute(SecurityAction.LinkDemand, SerializationFormatter = true)]
+        
         public override void GetObjectData(SerializationInfo serializationInfo, StreamingContext streamingContext)
         {
             base.GetObjectData(serializationInfo, streamingContext);
         }
     }
 
-    [Serializable]
     public class TlsOperationException : DirectoryOperationException
     {
-        protected TlsOperationException(SerializationInfo info, StreamingContext context) : base(info, context)
-        {
-        }
+        protected TlsOperationException(SerializationInfo info, StreamingContext context) : base(info, context) { }
 
         public TlsOperationException() : base() { }
 

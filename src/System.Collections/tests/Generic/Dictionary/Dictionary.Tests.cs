@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
@@ -155,13 +155,13 @@ namespace System.Collections.Tests
         [Fact]
         public void CopyConstructorExceptions()
         {
-            Assert.Throws<ArgumentNullException>("dictionary", () => new Dictionary<int, int>((IDictionary<int, int>)null));
-            Assert.Throws<ArgumentNullException>("dictionary", () => new Dictionary<int, int>((IDictionary<int, int>)null, null));
-            Assert.Throws<ArgumentNullException>("dictionary", () => new Dictionary<int, int>((IDictionary<int, int>)null, EqualityComparer<int>.Default));
+            AssertExtensions.Throws<ArgumentNullException>("dictionary", () => new Dictionary<int, int>((IDictionary<int, int>)null));
+            AssertExtensions.Throws<ArgumentNullException>("dictionary", () => new Dictionary<int, int>((IDictionary<int, int>)null, null));
+            AssertExtensions.Throws<ArgumentNullException>("dictionary", () => new Dictionary<int, int>((IDictionary<int, int>)null, EqualityComparer<int>.Default));
 
-            Assert.Throws<ArgumentOutOfRangeException>("capacity", () => new Dictionary<int, int>(new NegativeCountDictionary<int, int>()));
-            Assert.Throws<ArgumentOutOfRangeException>("capacity", () => new Dictionary<int, int>(new NegativeCountDictionary<int, int>(), null));
-            Assert.Throws<ArgumentOutOfRangeException>("capacity", () => new Dictionary<int, int>(new NegativeCountDictionary<int, int>(), EqualityComparer<int>.Default));
+            AssertExtensions.Throws<ArgumentOutOfRangeException>("capacity", () => new Dictionary<int, int>(new NegativeCountDictionary<int, int>()));
+            AssertExtensions.Throws<ArgumentOutOfRangeException>("capacity", () => new Dictionary<int, int>(new NegativeCountDictionary<int, int>(), null));
+            AssertExtensions.Throws<ArgumentOutOfRangeException>("capacity", () => new Dictionary<int, int>(new NegativeCountDictionary<int, int>(), EqualityComparer<int>.Default));
         }
 
         [Theory]
@@ -198,6 +198,7 @@ namespace System.Collections.Tests
 
         [Theory]
         [MemberData(nameof(CopyConstructorInt32ComparerData))]
+        [ActiveIssue(20888, TargetFrameworkMonikers.UapAot)]
         public void CopyConstructorInt32Comparer(int size, Func<int, int> keyValueSelector, Func<IDictionary<int, int>, IDictionary<int, int>> dictionarySelector, IEqualityComparer<int> comparer)
         {
             TestCopyConstructor(size, keyValueSelector, dictionarySelector, comparer);
@@ -219,6 +220,7 @@ namespace System.Collections.Tests
 
         [Theory]
         [MemberData(nameof(CopyConstructorStringComparerData))]
+        [ActiveIssue(20888, TargetFrameworkMonikers.UapAot)]
         public void CopyConstructorStringComparer(int size, Func<int, string> keyValueSelector, Func<IDictionary<string, string>, IDictionary<string, string>> dictionarySelector, IEqualityComparer<string> comparer)
         {
             TestCopyConstructor(size, keyValueSelector, dictionarySelector, comparer);

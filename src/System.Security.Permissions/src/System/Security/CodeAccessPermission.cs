@@ -4,7 +4,6 @@
 
 namespace System.Security
 {
-    [Serializable]
     public abstract partial class CodeAccessPermission : IPermission, ISecurityEncodable, IStackWalk
     {
         protected CodeAccessPermission() { }
@@ -12,7 +11,7 @@ namespace System.Security
         public abstract IPermission Copy();
         public void Demand() { }
         [Obsolete]
-        public void Deny() { throw new NotSupportedException(); }
+        public void Deny() { throw new PlatformNotSupportedException(SR.PlatformNotSupported_CAS); }
         public override bool Equals(object obj) => base.Equals(obj);
         public abstract void FromXml(SecurityElement elem);
         public override int GetHashCode() => base.GetHashCode();
