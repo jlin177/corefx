@@ -59,6 +59,7 @@ namespace System.Diagnostics.Tests
         }
 
         [Fact]
+        [SkipOnTargetFramework(TargetFrameworkMonikers.Uap, "Not supported on UAP")]
         public void TestThreadCollectionBehavior()
         {
             CreateDefaultProcess();
