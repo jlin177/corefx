@@ -20,10 +20,6 @@ namespace Microsoft.CSharp.RuntimeBinder.Semantics
         public Type AssociatedSystemType;
         public Assembly AssociatedAssembly;
 
-        // This InputFile is some infile for the assembly containing this AggregateSymbol.
-        // It is used for fast access to the filter BitSet and assembly ID.
-        private InputFile _infile;
-
         // The instance type. Created when first needed.
         private AggregateType _atsInst;
 
@@ -67,9 +63,6 @@ namespace Microsoft.CSharp.RuntimeBinder.Semantics
         // Constructors
         private bool _hasPubNoArgCtor; // Whether it has a public instance constructor taking no args
 
-        // private struct members should not be checked for assignment or references
-        private bool _hasExternReference;
-
         // User defined operators
 
         private bool _isSkipUDOps; // Never check for user defined operators on this type (eg, decimal, string, delegate).
@@ -103,11 +96,6 @@ namespace Microsoft.CSharp.RuntimeBinder.Semantics
             return _atsInst;
         }
 
-        public void InitFromInfile(InputFile infile)
-        {
-            _infile = infile;
-        }
-
         public bool FindBaseAgg(AggregateSymbol agg)
         {
             for (AggregateSymbol aggT = this; aggT != null; aggT = aggT.GetBaseAgg())
@@ -118,47 +106,11 @@ namespace Microsoft.CSharp.RuntimeBinder.Semantics
             return false;
         }
 
-        public NamespaceOrAggregateSymbol Parent
-        {
-            get { return parent.AsNamespaceOrAggregateSymbol(); }
-        }
+        public NamespaceOrAggregateSymbol Parent => parent as NamespaceOrAggregateSymbol;
 
-        public bool InAlias(KAID aid)
-        {
-            Debug.Assert(_infile != null);
-            //Debug.Assert(DeclFirst() == null || DeclFirst().GetAssemblyID() == infile.GetAssemblyID());
-            Debug.Assert(0 <= aid);
-            if (aid < KAID.kaidMinModule)
-                return _infile.InAlias(aid);
-            return (aid == GetModuleID());
-        }
+        public bool isNested() => parent is AggregateSymbol;
 
-        private KAID GetModuleID()
-        {
-            return 0;
-        }
-
-        public KAID GetAssemblyID()
-        {
-            Debug.Assert(_infile != null);
-            //Debug.Assert(DeclFirst() == null || DeclFirst().GetAssemblyID() == infile.GetAssemblyID());
-            return _infile.GetAssemblyID();
-        }
-
-        public bool IsUnresolved()
-        {
-            return _infile != null && _infile.GetAssemblyID() == KAID.kaidUnresolved;
-        }
-
-        public bool isNested()
-        {
-            return parent != null && parent.IsAggregateSymbol();
-        }
-
-        public AggregateSymbol GetOuterAgg()
-        {
-            return parent != null && parent.IsAggregateSymbol() ? parent.AsAggregateSymbol() : null;
-        }
+        public AggregateSymbol GetOuterAgg() => parent as AggregateSymbol;
 
         public bool isPredefAgg(PredefinedType pt)
         {
@@ -304,17 +256,6 @@ namespace Microsoft.CSharp.RuntimeBinder.Semantics
         {
             _hasPubNoArgCtor = hasPubNoArgCtor;
         }
-
-        public bool HasExternReference()
-        {
-            return _hasExternReference == true;
-        }
-
-        public void SetHasExternReference(bool hasExternReference)
-        {
-            _hasExternReference = hasExternReference;
-        }
-
 
         public bool IsSkipUDOps()
         {
